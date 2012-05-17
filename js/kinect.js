@@ -1,9 +1,84 @@
+var retorno_led = function(e) {
+	console.log("LED LIGHTS!");
+	console.debug(e);
+	console.debug(this);
+}
+
+/*
+
+
+var transferInfo = {
+	"direction": "in",
+	"recipient": "device",
+	"requestType": "64",
+	"request": 0x06,
+	"value": kinect.led_lights.LED_BLINK_YELLOW,
+	"index": 0x00
+};
+
+chrome.experimental.usb.controlTransfer(deviceId, transferInfo, retorno_led);
+
+
+"LED_OFF": 0,
+"LED_GREEN": 1,
+"LED_RED": 2,
+"LED_YELLOW": 3, //(actually orange)
+"LED_BLINK_YELLOW": 4, //(actually orange)
+"LED_BLINK_GREEN": 5,
+"LED_BLINK_RED_YELLOW": 6 //(actually red/orange)
+
+
+
+Control Transfer (8-bytes) Request:
+RequestType (1 byte)
+Request     (1 byte)
+Value       (2 bytes)
+Index       (2 bytes)
+Length      (2 bytes)
+
+The common values used for the RequestType field when talking to a Kinect are:
+0x80  (LIBUSB_REQUEST_TYPE_STANDARD | LIBUSB_RECIPIENT_DEVICE | LIBUSB_ENDPOINT_IN)
+0x40  (LIBUSB_REQUEST_TYPE_VENDOR   | LIBUSB_RECIPIENT_DEVICE | LIBUSB_ENDPOINT_OUT)
+0xc0  (LIBUSB_REQUEST_TYPE_VENDOR   | LIBUSB_RECIPIENT_DEVICE | LIBUSB_ENDPOINT_IN)
+
+For read packets (RequestType 0x80 and 0xc0) Length is the length of the response.
+
+
+//request  request  value        index   data   length
+// 0x40     0x06     led_option   0x0     empty  0
+
+0x06
+
+
+
+
+var transferInfo = {
+	"requestType": "vendor",
+	"recipient": "device",
+	"direction": "out",
+	"request": 0x06,
+	"value": 0x06,
+	"index": 0x00,
+	"data": []
+};
+
+
+
+chrome.experimental.usb.controlTransfer(deviceId, transferInfo, retorno_led);
+
+
+
+
+
+*/
+var deviceId;
+
 
 var kinect = (function(){
 
 	var vendorId = 0x045e;
 	var productId = 0x02B0;
-	var deviceId;
+	//var deviceId;
 	
 	var motor_initialized = false;
 
@@ -18,12 +93,13 @@ var kinect = (function(){
 
 
 	var init=function() {
-		//TODO: detect kinect
+		
 		flipState(false);
 		btnSetLedLight.addEventListener("click", setLedLight);
 	    btnHeadUp.addEventListener("click", headUp);
 	    btnHeadDown.addEventListener("click", headDown);
 	    
+		//TODO: detect kinect
 	    chrome.experimental.usb.findDevice(vendorId, productId, {"onEvent": onUsbEvent}, findDeviceCallback);
 	};
 	
@@ -85,8 +161,37 @@ var kinect = (function(){
 	var send_data = function(data) {
 		// (bmRequestType, bmRequestType, bmRequest, wValue, wIndex, nBytes)
 		var direction = "in";
-		
+		/*
 		//chrome.experimental.usb.controlTransfer(integer device, string direction, string recipient, string type,integer request, integer value, integer index, string data, function callback)
+		//chrome.experimental.usb.controlTransfer(deviceId.handle, "in", "device", "standard", 0x40, 0x06, light, 0x0, null, get_led_lights);
+		
+		
+		device ( integer )
+			A device handle on which the transfer is to be made.
+		direction ( string )
+			The direction of the control transfer. "in" for an inbound transfer, "out" for an outbound transfer.
+		recipient ( string )
+			The intended recipient of this message. Must be one of "device", "interface", "endpoint" or "other".
+		type ( string )
+			The type of this request. Must be one of "standard", "class", "vendor" or "reserved".
+		request ( integer )
+		value ( integer )
+		index ( integer )
+		data ( string )
+			(TODO(gdk): ArrayBuffer) The data payload carried by this transfer.
+		callback ( optional function )
+			An optional callback that is invoked when this transfer completes.
+		
+		Callback function
+			If you specify the callback parameter, it should specify a function that looks like this:
+			function(object result) {...};
+			result ( object )
+				data ( optional string )
+					(TODO(gdk): ArrayBuffer) If the transfer is inbound, then this field is populated with the data transferred from the device.
+				result ( integer )
+					On success, 0 is returned. On failure, -1.
+		
+		*/
 		
 		logError("Not yet implemented");
 	};
@@ -112,11 +217,29 @@ var kinect = (function(){
 		//send_data([0x40, 0x31, 0xffd0, 0x0, []]); // up
 		
 	};
+	var get_led_lights = function(e) {
+		log("LED LIGHTS!");
+		logObj(e);
+		logObj(this);
+	}
 	var set_led_lights = function(light) {
-		send_data([0x40, 0x06, light, 0x0, []]); // up
+		//send_data([0x40, 0x06, light, 0x0, []]); // up
+		//chrome.experimental.usb.controlTransfer(deviceId.handle, "in", "device", 0x40, 0x06, light, 0x0, null, get_led_lights);
 		
 		//request  request  value        index   data   length
 		// 0x40     0x06     led_option   0x0     empty  0
+		
+		var transferInfo = {
+			"requestType": "vendor",
+			"recipient": "device",
+			"direction": "out",
+			"request": 0x06,
+			"value": light,
+			"index": 0x00,
+			"data": []
+		};
+		chrome.experimental.usb.controlTransfer(deviceId, transferInfo);
+
 	}
 	
 	var get_accel = function() {
@@ -174,4 +297,3 @@ var kinect = (function(){
 
 
 kinect.init();
-    
