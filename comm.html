@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<!--
+Copyright 2012 Google Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+Author: Renato Mangini (mangini@chromium.org)
+Author: Luis Leao (luisleao@gmail.com)
+-->
+
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" media="all" href="css/main.css"></link>
+</head>
+<body>
+  <section id="usb">
+    <header><h2>USB test</h2></header>
+    <label>Vendor ID (eg 0x0403):</label><input class="vendor" type="text"></input><br/>
+    <label>Product ID (eg 0x6001):</label><input class="product" type="text"></input>
+    <button class="locate">locate device</button>
+    <button class="forget">forget device</button><br/>
+    <label>Write string (eg 'test command'):</label><input class="writeString" type="text"></input>
+    <button class="bulk">as bulk</button>
+    <button class="control">as control</button><br/>
+    <div class="log"></div>
+  </section>
+  <section id="serial">
+    <header><h2>Serial test</h2></header>
+    <label>Serial port:</label>
+    <select class="ports"></select><button class="refresh">Refresh</button>
+    <button class="open">Open serial</button>
+    <button class="close">Close serial</button><br/>
+    <label>Write string (eg 'test command'):</label><input class="writeString" type="text"></input>
+    <button class="write">Write</button><br/>
+    <div class="log"></div>
+  </section>
+
+  <section id="kinect">
+    <header><h2>Serial test</h2></header>
+	<div class="kinect">Kinect - Vendor: 0x045e Product: 0x02B0</div>
+    <label>Commands:</label>
+    <button class="head_up">Head Up</button>
+    <button class="head_down">Head Down</button><br/>
+	<label>Set LED:</label>
+	<select class="leds">
+		<option>LED_OFF</option>
+		<option>LED_GREEN</option>
+		<option>LED_RED</option>
+		<option>LED_YELLOW</option>
+		<option>LED_BLINK_GREEN</option>
+		<option>LED_BLINK_RED_YELLOW</option>
+		<option>LED_BLINK_YELLOW</option>
+	</select><button class="set_led_light">Set</button>
+	
+    <div class="log"></div>
+  </section>
+
+  <script src="js/usb.js"></script>
+  <script src="js/serial.js"></script>
+  <script src="js/kinect.js"></script>
+</body>
+</html>
