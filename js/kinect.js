@@ -99,13 +99,12 @@ var kinect = (function(){
 	    btnHeadUp.addEventListener("click", headUp);
 	    btnHeadDown.addEventListener("click", headDown);
 	    
-		//TODO: detect kinect
 	    chrome.experimental.usb.findDevice(vendorId, productId, {"onEvent": onUsbEvent}, findDeviceCallback);
 	};
 	
 	var onUsbEvent=function(e) {
-		log("event!");
-		log(e);
+		log("event! (inspect on console)");
+		logObj(e);
 	}
 
 	var findDeviceCallback=function(dId) {
@@ -135,10 +134,10 @@ var kinect = (function(){
 	    set_led_lights(led_lights[led_color]);
 	};
 	var headUp = function() {
-		move_head(0xfff0);
+		move_head(0x10);
 	};
 	var headDown = function() {
-		move_head(0xffd0);
+		move_head(0xfff8);
 	}
 	
 	
@@ -158,14 +157,7 @@ var kinect = (function(){
 	};
   
 
-	var send_data = function(data) {
-		// (bmRequestType, bmRequestType, bmRequest, wValue, wIndex, nBytes)
-		var direction = "in";
-		/*
-		//chrome.experimental.usb.controlTransfer(integer device, string direction, string recipient, string type,integer request, integer value, integer index, string data, function callback)
-		//chrome.experimental.usb.controlTransfer(deviceId.handle, "in", "device", "standard", 0x40, 0x06, light, 0x0, null, get_led_lights);
-		
-		
+	/*
 		device ( integer )
 			A device handle on which the transfer is to be made.
 		direction ( string )
@@ -191,19 +183,29 @@ var kinect = (function(){
 				result ( integer )
 					On success, 0 is returned. On failure, -1.
 		
-		*/
-		
-		logError("Not yet implemented");
+	*/
+	var send_control = function(request, value, index, data) {
+		var transferInfo = {
+			"requestType": "vendor",
+			"recipient": "device",
+			"direction": "out",
+			"request": request,
+			"value": value,
+			"index": index,
+			"data": data
+                };
+		chrome.experimental.usb.controlTransfer(deviceId, transferInfo);
 	};
 
 	var initialize_motor = function() {
 		if (motor_initialized)
 			return;
 		
-		send_data([0xC0, 0x10, 0x0, 0x0, 1]);  // MOTOR INITIALIZE should return 0x22 but dont know why ?
-		send_data([0x40, 0x6, 0x1, 0x0, []]); // ???
+		//send_control(0xC0, 0x10, 0x0, 0x0, [1]);  // MOTOR INITIALIZE should return 0x22
+		//send_control(0x40, 0x6, 0x1, 0x0, [0]); // ???
 		motor_initialized = true;
 	};
+
 	var move_head = function(angle) {
 		/*
 			type  request  value                    index   data   length
@@ -212,9 +214,7 @@ var kinect = (function(){
 			//view WARNINGS about angles. The angles is always relative to horizon (equals 0).
 		*/
 		initialize_motor();
-		
-		send_data([0x40, 0x31, angle, 0x0, []]); // up 0xfff0 // down 0xffd0 // 2 * angle
-		//send_data([0x40, 0x31, 0xffd0, 0x0, []]); // up
+		send_control(0x31, 2*angle, 0, [0]); 
 		
 	};
 	var get_led_lights = function(e) {
@@ -236,7 +236,7 @@ var kinect = (function(){
 			"request": 0x06,
 			"value": light,
 			"index": 0x00,
-			"data": []
+			"data": [0]  // need to send something on data array, otherwise chrome on linux crashes!!!
 		};
 		chrome.experimental.usb.controlTransfer(deviceId, transferInfo);
 
