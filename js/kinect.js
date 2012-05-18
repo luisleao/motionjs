@@ -1,32 +1,4 @@
-var retorno_led = function(e) {
-	console.log("LED LIGHTS!");
-	console.debug(e);
-	console.debug(this);
-}
-
 /*
-
-
-var transferInfo = {
-	"direction": "in",
-	"recipient": "device",
-	"requestType": "64",
-	"request": 0x06,
-	"value": kinect.led_lights.LED_BLINK_YELLOW,
-	"index": 0x00
-};
-
-chrome.experimental.usb.controlTransfer(deviceId, transferInfo, retorno_led);
-
-
-"LED_OFF": 0,
-"LED_GREEN": 1,
-"LED_RED": 2,
-"LED_YELLOW": 3, //(actually orange)
-"LED_BLINK_YELLOW": 4, //(actually orange)
-"LED_BLINK_GREEN": 5,
-"LED_BLINK_RED_YELLOW": 6 //(actually red/orange)
-
 
 
 Control Transfer (8-bytes) Request:
@@ -43,42 +15,20 @@ The common values used for the RequestType field when talking to a Kinect are:
 
 For read packets (RequestType 0x80 and 0xc0) Length is the length of the response.
 
-
-//request  request  value        index   data   length
-// 0x40     0x06     led_option   0x0     empty  0
-
-0x06
-
-
-
-
-var transferInfo = {
-	"requestType": "vendor",
-	"recipient": "device",
-	"direction": "out",
-	"request": 0x06,
-	"value": 0x06,
-	"index": 0x00,
-	"data": []
-};
-
-
-
-chrome.experimental.usb.controlTransfer(deviceId, transferInfo, retorno_led);
-
-
-
-
-
 */
-var deviceId;
 
+var deviceId;
+var accel;
 
 var kinect = (function(){
 
 	var vendorId = 0x045e;
 	var productId = 0x02B0;
+	var tmr_accel = null;
+	
 	//var deviceId;
+	//var accel;
+	
 	
 	var motor_initialized = false;
 
@@ -91,20 +41,67 @@ var kinect = (function(){
 	var btnHeadDown=section.querySelector(".head_down");
   	var leds=section.querySelector(".leds");
 
-
+	var findDevice = function(){
+	    chrome.experimental.usb.findDevice(vendorId, productId, {"onEvent": onUsbEvent}, findDeviceCallback);
+	};
 	var init=function() {
 		
 		flipState(false);
 		btnSetLedLight.addEventListener("click", setLedLight);
-	    btnHeadUp.addEventListener("click", headUp);
-	    btnHeadDown.addEventListener("click", headDown);
-	    
-	    chrome.experimental.usb.findDevice(vendorId, productId, {"onEvent": onUsbEvent}, findDeviceCallback);
+		btnHeadUp.addEventListener("click", headUp);
+		btnHeadDown.addEventListener("click", headDown);
+		findDevice();
+	
 	};
 	
 	var onUsbEvent=function(e) {
-		log("event! (inspect on console)");
-		logObj(e);
+		//log("event! (inspect on console)");
+		
+		//TODO: review this code: others events (camera) will use the same routine
+		if (e.resultCode == 0 && e.data.length == 10) {
+			
+			/*
+			the 8th byte (buf[8]) yields:
+			 positive_angle_degrees = value/2
+			 negative_angle_degrees = (255-value)/2
+			
+			buf[8] = 0x80 if the kinect is moving (buf[9] is usually 0x04, but sometimes 0x00)
+			Please note that this is not the angle of the motor, this is the angle of the kinect itself in degrees (basically accelerometer data translated)
+			
+			the 9th byte (buf[9]) yields the following status codes:
+			 0x0 - stopped
+			 0x1 - reached limits
+			 0x4 - moving
+			*/
+			
+			//accel
+			/*
+			var x = (e.data[2] << 8) | e.data[3];
+		    x = (x + 2^15) % 2^16 - 2^15; //     # convert to signed 16b
+		    var y = (e.data[4] << 8) | e.data[5];
+		    y = (y + 2^15) % 2^16 - 2^15; //     # convert to signed 16b
+		    var z = (e.data[6] << 8) | e.data[7];
+		    z = (z + 2^15) % 2^16 - 2^15; //     # convert to signed 16b
+			*/
+			
+			//[192, 50, 0, 0, 0, 0, 10, 0, 0, 20] 
+			//[192, 50, 0, 0, 0, 0, 10, 0, 0, 10] 
+			
+			
+			var ux = (e.data[2] << 8) | e.data[3];
+			var uy = (e.data[4] << 8) | e.data[5];
+			var uz = (e.data[6] << 8) | e.data[7];
+		    
+			accel = {
+				"x": ux,
+				"y": uy,
+				"z": uz
+			};
+			logObj(e.data);
+			//logObj(accel);
+		} else {
+			logObj(e);
+		}
 	}
 
 	var findDeviceCallback=function(dId) {
@@ -115,6 +112,7 @@ var kinect = (function(){
 			deviceId=dId;
 			logObj(dId);
 			logSuccess("Device found (deviceId="+dId+")");
+			tmr_accel = setInterval(get_accel, 1000);
 			flipState(true);
 		}
 	};
@@ -135,6 +133,7 @@ var kinect = (function(){
 	};
 	var headUp = function() {
 		move_head(0x10);
+		//move_head(0x10);
 	};
 	var headDown = function() {
 		move_head(0xfff8);
@@ -193,7 +192,7 @@ var kinect = (function(){
 			"value": value,
 			"index": index,
 			"data": data
-                };
+		};
 		chrome.experimental.usb.controlTransfer(deviceId, transferInfo);
 	};
 	
@@ -210,11 +209,8 @@ var kinect = (function(){
 			"length": length
         };
 
-		var ret = chrome.experimental.usb.controlTransfer(deviceId, transferInfo, function(){ logObj(this); });
-		logObj("retorno");
-		logObj(ret);
-		logObj("final");
-		return ret
+		chrome.experimental.usb.controlTransfer(deviceId, transferInfo);
+		
 	}
 
 	/*
@@ -231,6 +227,7 @@ var kinect = (function(){
 		
 		//send_control(0xC0, 0x10, 0x0, 0x0, [1]);  // MOTOR INITIALIZE should return 0x22
 		//send_control(0x40, 0x6, 0x1, 0x0, [0]); // ???
+		get_control(0x10, 0, 0, [0], 1);
 		motor_initialized = true;
 	};
 
@@ -245,48 +242,19 @@ var kinect = (function(){
 		send_control(0x31, 2*angle, 0, [0]); 
 		
 	};
-	var get_led_lights = function(e) {
-		log("LED LIGHTS!");
-		logObj(e);
-		logObj(this);
-	}
 	var set_led_lights = function(led) {
-		//send_data([0x40, 0x06, light, 0x0, []]); // up
-		//chrome.experimental.usb.controlTransfer(deviceId.handle, "in", "device", 0x40, 0x06, light, 0x0, null, get_led_lights);
-		
 		//request  request  value        index   data   length
 		// 0x40     0x06     led_option   0x0     empty  0
 		send_control(0x06, led, 0, [0]); 
-		/*
-		var transferInfo = {
-			"requestType": "vendor",
-			"recipient": "device",
-			"direction": "out",
-			"request": 0x06,
-			"value": led,
-			"index": 0x00,
-			"data": []  // need to send something on data array, otherwise chrome on linux crashes!!!
-		};
-		chrome.experimental.usb.controlTransfer(deviceId, transferInfo, function(e){ log("LED LIGHTS!"); logObj(this); });
-		*/
-		
 	}
 	
 	var get_accel = function() {
-		var result = {};
-		
-		//ctrl_transfer
-		//var ret = send_data([0xC0, 0x32, 0x0, 0x0, 10]); 
-		var data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-		
-		var ret = get_control(0x32, 0, 0, data);
-		
 		/*
 			request  request  value  index   data    length
 			 0xC0     0x32     0x0    0x0     buf     10
-			
 			The joint state information is grouped in with the accelerometer data and is stored in the 8th and 9th byte
 		*/
+		get_control(0x32, 0, 0, [0,0,0,0,0,0,0,0,0,0], 10);
 		
 		/*
 		//    #print map(hex, ret)
@@ -302,11 +270,10 @@ var kinect = (function(){
 
 	    print x, "\t", y, "\t", z
 		*/
-		return ret;
 	};
 	
 	/*
-	
+		LED states constants
 	*/
 	var led_lights = {
 		"LED_OFF": 0,
@@ -323,7 +290,8 @@ var kinect = (function(){
 		"move_head": move_head,
 		"led_lights": led_lights,
 		"set_led_lights": set_led_lights,
-		"get_accel": get_accel
+		"get_accel": get_accel,
+		"findDevice": findDevice
 	}
 	
 })();
