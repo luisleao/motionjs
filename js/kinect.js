@@ -196,6 +196,34 @@ var kinect = (function(){
                 };
 		chrome.experimental.usb.controlTransfer(deviceId, transferInfo);
 	};
+	
+	var get_control = function(request, value, index, data, length) {
+		
+		var transferInfo = {
+			"requestType": "vendor",
+			"recipient": "device",
+			"direction": "in",
+			"request": request,
+			"value": value,
+			"index": index,
+			"data": data,
+			"length": length
+        };
+
+		var ret = chrome.experimental.usb.controlTransfer(deviceId, transferInfo, function(){ logObj(this); });
+		logObj("retorno");
+		logObj(ret);
+		logObj("final");
+		return ret
+	}
+
+	/*
+	
+	0x80  (LIBUSB_REQUEST_TYPE_STANDARD | LIBUSB_RECIPIENT_DEVICE | LIBUSB_ENDPOINT_IN)
+	0x40  (LIBUSB_REQUEST_TYPE_VENDOR   | LIBUSB_RECIPIENT_DEVICE | LIBUSB_ENDPOINT_OUT)
+	0xc0  (LIBUSB_REQUEST_TYPE_VENDOR   | LIBUSB_RECIPIENT_DEVICE | LIBUSB_ENDPOINT_IN)
+	
+	*/
 
 	var initialize_motor = function() {
 		if (motor_initialized)
@@ -222,31 +250,36 @@ var kinect = (function(){
 		logObj(e);
 		logObj(this);
 	}
-	var set_led_lights = function(light) {
+	var set_led_lights = function(led) {
 		//send_data([0x40, 0x06, light, 0x0, []]); // up
 		//chrome.experimental.usb.controlTransfer(deviceId.handle, "in", "device", 0x40, 0x06, light, 0x0, null, get_led_lights);
 		
 		//request  request  value        index   data   length
 		// 0x40     0x06     led_option   0x0     empty  0
-		
+		send_control(0x06, led, 0, [0]); 
+		/*
 		var transferInfo = {
 			"requestType": "vendor",
 			"recipient": "device",
 			"direction": "out",
 			"request": 0x06,
-			"value": light,
+			"value": led,
 			"index": 0x00,
-			"data": [0]  // need to send something on data array, otherwise chrome on linux crashes!!!
+			"data": []  // need to send something on data array, otherwise chrome on linux crashes!!!
 		};
-		chrome.experimental.usb.controlTransfer(deviceId, transferInfo);
-
+		chrome.experimental.usb.controlTransfer(deviceId, transferInfo, function(e){ log("LED LIGHTS!"); logObj(this); });
+		*/
+		
 	}
 	
 	var get_accel = function() {
 		var result = {};
 		
 		//ctrl_transfer
-		var ret = send_data([0xC0, 0x32, 0x0, 0x0, 10]); 
+		//var ret = send_data([0xC0, 0x32, 0x0, 0x0, 10]); 
+		var data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+		
+		var ret = get_control(0x32, 0, 0, data);
 		
 		/*
 			request  request  value  index   data    length
@@ -269,7 +302,7 @@ var kinect = (function(){
 
 	    print x, "\t", y, "\t", z
 		*/
-		return result;
+		return ret;
 	};
 	
 	/*
