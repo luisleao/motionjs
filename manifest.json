@@ -1,5 +1,5 @@
 {
-  "name": "Explores the serial and/or usb support on Chromium.",
+  "name": "Kinect support on Chrome",
   "version": "1.0",
   "permissions": [
     "experimental", "windows", "usb", "serial"

@@ -24,30 +24,11 @@ Author: Luis Leao (luisleao@gmail.com)
 <link rel="stylesheet" media="all" href="css/main.css"></link>
 </head>
 <body>
-  <section id="usb">
-    <header><h2>USB test</h2></header>
-    <label>Vendor ID (eg 0x0403):</label><input class="vendor" type="text"></input><br/>
-    <label>Product ID (eg 0x6001):</label><input class="product" type="text"></input>
-    <button class="locate">locate device</button>
-    <button class="forget">forget device</button><br/>
-    <label>Write string (eg 'test command'):</label><input class="writeString" type="text"></input>
-    <button class="bulk">as bulk</button>
-    <button class="control">as control</button><br/>
-    <div class="log"></div>
-  </section>
-  <section id="serial">
-    <header><h2>Serial test</h2></header>
-    <label>Serial port:</label>
-    <select class="ports"></select><button class="refresh">Refresh</button>
-    <button class="open">Open serial</button>
-    <button class="close">Close serial</button><br/>
-    <label>Write string (eg 'test command'):</label><input class="writeString" type="text"></input>
-    <button class="write">Write</button><br/>
-    <div class="log"></div>
-  </section>
-
   <section id="kinect">
-    <header><h2>Kinect</h2></header>
+    <header><img src="img/kinect.png" alt="Kinect"></img>
+         <img id="eye1" src="img/eye.png"></img>
+         <img id="eye2" src="img/eye.png"></img>
+    </header>
 	<div class="kinect">
 		Kinect Vendor: 0x045e. Motor: 0x02B0. Audio: 0x02AD. Camera: 0x02AC<br/>
 		<br/>
@@ -57,26 +38,20 @@ Author: Luis Leao (luisleao@gmail.com)
 		06 - NUI Audio<br/>
 		<br/>
 	</div>
+    <button class="init">Init</button>
     <label>Commands:</label>
     <button class="head_up">Head Up</button>
-    <button class="head_down">Head Down</button><br/>
-	<label>Set LED:</label>
-	<select class="leds">
-		<option>LED_OFF</option>
-		<option>LED_GREEN</option>
-		<option>LED_RED</option>
-		<option>LED_YELLOW</option>
-		<option>LED_BLINK_GREEN</option>
-		<option>LED_BLINK_RED_YELLOW</option>
-		<option>LED_BLINK_YELLOW</option>
-	</select><button class="set_led_light">Set</button>
-	
+    <button class="head_down">Head Down</button>
+    <label>Set LED:</label>
+    <button class="led" value="LED_OFF">off</button>
+    <button class="led" value="LED_GREEN">green</button>
+    <button class="led" value="LED_RED">red</button>
+    <button class="led" value="LED_BLINK_GREEN">blink g</button>
+    <button class="led" value="LED_BLINK_RED_YELLOW">blink r/y</button>
+    <br/>
     <div class="log"></div>
   </section>
-<!--
-  <script src="js/usb.js"></script>
-  <script src="js/serial.js"></script>
--->
+  <script src="js/motion.js"></script>
   <script src="js/kinect.js"></script>
 </body>
 </html>

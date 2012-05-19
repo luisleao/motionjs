@@ -1,15 +1,20 @@
+header {
+  position: absolute;
+  right: 10px;
+  top: 5px;
+  color: white;
+}
 section {
   font-family: 'Open Sans';
   -webkit-font-smoothing: antialiased;
-  background: -webkit-linear-gradient(rgb(250, 200, 200), rgb(200, 160, 160));
+  background: -webkit-linear-gradient(rgb(160, 160, 160), rgb(200, 200, 200));
   padding: 10px;
   margin: 10px;
   border-radius: 10px;
   position: relative;
 }
 
-section:nth-child(odd) {
-  background: -webkit-linear-gradient(rgb(200, 200, 250), rgb(160, 160, 200));
+section#kinect {
 }
 
 .log {
@@ -28,9 +33,77 @@ section:nth-child(odd) {
   height: 250px;
   overflow: auto;
 }
-header {
-  position: absolute;
-  right: 10px;
-  top: 5px;
-  color: white;
+
+.led {
+  background: white;
+  border: 1px solid #999;
+  border-radius: 40px;
+  padding: 0 6px;
 }
+
+.led:hover[value='LED_OFF'] {
+  background: black;
+}
+
+.led:hover[value='LED_GREEN'] {
+  background: green;
+}
+
+.led:hover[value='LED_RED'] {
+  background: red;
+}
+
+.led:hover[value='LED_BLINK_GREEN'] {
+  background: green;
+  -webkit-animation-name: bgblink;
+  -webkit-animation-duration: 0.2s;
+  -webkit-animation-iteration-count: infinite;
+  -webkit-animation-direction: alternate;
+}
+
+@-webkit-keyframes bgblink {
+  from { }
+  to { background: white; }
+}
+
+.led:hover[value='LED_BLINK_RED_YELLOW'] {
+  background: red;
+  -webkit-animation-name: ryblink;
+  -webkit-animation-duration: 0.2s;
+  -webkit-animation-iteration-count: infinite;
+  -webkit-animation-direction: alternate;
+}
+
+@-webkit-keyframes ryblink {
+  from { }
+  to { background: orange; }
+}
+
+#eye1 {
+  right: 145px;  
+  top: 10px;
+  position: absolute;
+}
+#eye2 {
+  right: 119px;  
+  top: 10px;
+  position: absolute;
+}
+.show {
+  -webkit-animation-name: eyeblink;
+  -webkit-animation-duration: 2s;
+  -webkit-animation-iteration-count: 1;
+  -webkit-animation-direction: normal;
+}
+#eye2.show {
+  -webkit-animation-direction: reverse;
+}
+@-webkit-keyframes eyeblink {
+  from {
+    -webkit-transform: rotate(0deg);
+  }
+  to {
+    -webkit-transform: rotate(1799deg);
+  }
+}
+
