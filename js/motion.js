@@ -19,6 +19,7 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
 
 
 var motionjs__init = function(){
+  var DEBUG=true;
 
   // constants
   var REQUEST_TYPES={"standard": "standard", "class": "class", "vendor": "vendor", "reserved": "reserved"};
@@ -47,16 +48,26 @@ var motionjs__init = function(){
     "length": 0
   };
 
+  var depthStreamEnabled=false;
+
   var findDevice = function(vendorId, productId, onUsbEventCallback, onDeviceFoundCallback){
-    chrome.experimental.usb.findDevice(vendorId, productId, {"onEvent": onUsbEventCallback}, 
+    chrome.experimental.usb.findDevice(vendorId, productId, 
+      {"onEvent": function(e) {
+          if (DEBUG) { console.log("[motionjs] event on USB"); console.log(e); };
+          if (onUsbEventCallback) onUsbEventCallback.call(this, e);
+        }
+      }, 
       function(dId) { 
         deviceId=dId; 
-        if (onDeviceFoundCallback) {
-          return onDeviceFoundCallback(dId);
-        }
+        if (DEBUG) { console.log("[motionjs] found device"); console.log(dId); };
+        if (onDeviceFoundCallback) onDeviceFoundCallback.call(this, dId);
       }
     );
   };
+
+  var initMotors = function(callback) {
+    receiveControlTransfer(0x10, 0, 0, null, 0);
+  }
 
   var sendControlTransfer = function(request, value, index, data) {
     transferInfo.requestType=REQUEST_TYPES.vendor;
@@ -65,7 +76,7 @@ var motionjs__init = function(){
     transferInfo.request=request;
     transferInfo.value=value;
     transferInfo.index=index;
-    transferInfo.data=(data && data.length>0)?data:[0];
+    if (data && data.length>0) transferInfo.data=data;
     chrome.experimental.usb.controlTransfer(deviceId, transferInfo);
   }
 
@@ -76,7 +87,7 @@ var motionjs__init = function(){
     transferInfo.request=request;
     transferInfo.value=value;
     transferInfo.index=index;
-    transferInfo.data=(data && data.length>0)?data:[0];
+    if (data && data.length>0) transferInfo.data=data;
     transferInfo.length=length;
     chrome.experimental.usb.controlTransfer(deviceId, transferInfo);
   }
@@ -101,14 +112,26 @@ var motionjs__init = function(){
   }
   
 
+  var enableDepthStream = function(callback) {
+    
+    depthStreamEnabled=true;
+  }
+
+  var disableDepthStream = function() {
+    depthStreamEnabled=false;
+  }
+
   return { 
-    "findDevice": findDevice,
-    "moveHead": moveHead,
-    "setLed": setLed,
     "LED_LIGHTS": LED_LIGHTS,
     "REQUEST_TYPES": REQUEST_TYPES,
     "RECIPIENTS": RECIPIENTS,
-    "DIRECTIONS": DIRECTIONS
+    "DIRECTIONS": DIRECTIONS,
+    "findDevice": findDevice,
+    "moveHead": moveHead,
+    "setLed": setLed,
+    "enableDepthStream": enableDepthStream,
+    "disableDepthStream": disableDepthStream,
+    "isDepthStreamEnabled": function() { return depthStreamEnabled; },
   }
 
 };

@@ -16,6 +16,7 @@ var kinect = (function(){
   var btnInit=section.querySelector(".init");
   var btnHeadUp=section.querySelector(".head_up");
   var btnHeadDown=section.querySelector(".head_down");
+  var btnDepthStream=section.querySelector(".enable-depth");
   var leds=section.querySelectorAll(".led");
 
   var init=function() {
@@ -28,6 +29,7 @@ var kinect = (function(){
     flipState(false);
     btnHeadUp.addEventListener("click", headUp);
     btnHeadDown.addEventListener("click", headDown);
+    btnDepthStream.addEventListener("click", swapDepthStream);
     btnInit.addEventListener("click", onFindDevice);
   };
 
@@ -116,6 +118,7 @@ var kinect = (function(){
     }
     btnHeadUp.disabled=!deviceLocated;
     btnHeadDown.disabled=!deviceLocated;
+    btnDepthStream.disabled=!deviceLocated;
   };
 
   
@@ -137,6 +140,18 @@ var kinect = (function(){
     motionjs.moveHead(-10);
   };
   
+  var swapDepthStream = function() {
+    if (motionjs.isDepthStreamEnabled()) {
+      btnDepthStream.textContent="Off";
+      btnDepthStream.className="enable-depth";
+      motionjs.disableDepthStream();
+    } else {
+      btnDepthStream.textContent="On";
+      btnDepthStream.className="enable-depth on";
+      motionjs.enableDepthStream();
+    }
+  }
+
   var logObj=function(obj) {
     console.log(obj);
   }
