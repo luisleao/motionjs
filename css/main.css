@@ -1,6 +1,5 @@
-@import url(http://fonts.googleapis.com/css?family=Open+Sans);
 body {
-  font-family: 'Open Sans';
+  font-family: 'Open Sans', sans;
   font-size: 10pt;
 }
 header {

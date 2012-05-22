@@ -69,7 +69,7 @@ var motionjs__init = function(){
   var initMotors = function(callback) {
     if (motorInitialized) return;
     motorInitialized = true;
-    receiveControlTransfer(0x10, 0, 0, null, 0);
+    receiveControlTransfer(0x10, 0, 0, [0], 1);  // sending empty arrays crashes in Linux, so sending a dummy one
   }
 
   var sendControlTransfer = function(request, value, index, data) {
