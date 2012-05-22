@@ -49,7 +49,8 @@ var motionjs__init = function(){
   };
 
   var depthStreamEnabled=false;
-
+  var motorInitialized=false;
+  
   var findDevice = function(vendorId, productId, onUsbEventCallback, onDeviceFoundCallback){
     chrome.experimental.usb.findDevice(vendorId, productId, 
       {"onEvent": function(e) {
@@ -66,10 +67,13 @@ var motionjs__init = function(){
   };
 
   var initMotors = function(callback) {
+    if (motorInitialized) return;
+    motorInitialized = true;
     receiveControlTransfer(0x10, 0, 0, null, 0);
   }
 
   var sendControlTransfer = function(request, value, index, data) {
+    //0x40
     transferInfo.requestType=REQUEST_TYPES.vendor;
     transferInfo.recipient=RECIPIENTS.device;
     transferInfo.direction=DIRECTIONS.outbound;
@@ -77,10 +81,12 @@ var motionjs__init = function(){
     transferInfo.value=value;
     transferInfo.index=index;
     if (data && data.length>0) transferInfo.data=data;
-    chrome.experimental.usb.controlTransfer(deviceId, transferInfo);
+    var ret = chrome.experimental.usb.controlTransfer(deviceId, transferInfo);
+    if (DEBUG) { console.log("[motionjs] sendControlTransfer"); console.log(ret); };
   }
 
   var receiveControlTransfer = function(request, value, index, data, length) {
+    // 0xc0
     transferInfo.requestType=REQUEST_TYPES.vendor;
     transferInfo.recipient=RECIPIENTS.device;
     transferInfo.direction=DIRECTIONS.inbound;
@@ -89,8 +95,10 @@ var motionjs__init = function(){
     transferInfo.index=index;
     if (data && data.length>0) transferInfo.data=data;
     transferInfo.length=length;
-    chrome.experimental.usb.controlTransfer(deviceId, transferInfo);
+    var ret = chrome.experimental.usb.controlTransfer(deviceId, transferInfo);
+    if (DEBUG) { console.log("[motionjs] receiveControlTransfer"); console.log(ret); };
   }
+
 
   /*
      type  request  value                    index   data   length
@@ -99,9 +107,14 @@ var motionjs__init = function(){
      //view WARNINGS about angles. The angles is always relative to the horizon, independent of the position of Kinetic!.
     */
   var moveHead = function(angle) {
+    initMotors();
     sendControlTransfer(0x31, 2*angle, 0, []); 
   };
 
+  var getAccel = function(angle) {
+    receiveControlTransfer(0x32, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 10);
+    //sendControlTransfer(0x31, 2*angle, 0, []); 
+  };
 
   /*
      type  request  value        index   data   length
@@ -113,7 +126,6 @@ var motionjs__init = function(){
   
 
   var enableDepthStream = function(callback) {
-    
     depthStreamEnabled=true;
   }
 
@@ -128,6 +140,7 @@ var motionjs__init = function(){
     "DIRECTIONS": DIRECTIONS,
     "findDevice": findDevice,
     "moveHead": moveHead,
+    "getAccel": getAccel,
     "setLed": setLed,
     "enableDepthStream": enableDepthStream,
     "disableDepthStream": disableDepthStream,

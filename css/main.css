@@ -1,11 +1,15 @@
+@import url(http://fonts.googleapis.com/css?family=Open+Sans);
+body {
+  font-family: 'Open Sans';
+  font-size: 10pt;
+}
 header {
   position: absolute;
-  right: 10px;
-  top: 5px;
+  right: 25px;
+  top: 25px;
   color: white;
 }
 section {
-  font-family: 'Open Sans';
   -webkit-font-smoothing: antialiased;
   background: -webkit-linear-gradient(rgb(160, 160, 160), rgb(200, 200, 200));
   padding: 10px;
@@ -32,6 +36,7 @@ canvas {
  background: white;
  border: 1px solid #333;
  overflow: auto;
+ font-size: 9pt;
 }
 
 
@@ -105,6 +110,7 @@ canvas {
   -webkit-animation-iteration-count: 1;
   -webkit-animation-direction: normal;
 }
+
 #eye2.show {
   -webkit-animation-direction: reverse;
 }
