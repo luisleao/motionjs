@@ -2,13 +2,14 @@
   "name": "Kinect support on Chrome",
   "version": "1.0",
   "permissions": [
-    "experimental", "windows", "usb", "serial"
+    "experimental", "usb"
   ],
-  "background": {
-    "scripts": ["js/background.js"],
-    "transient": "true"
+  "app": {
+    "background": {
+      "scripts": ["js/background.js"]
+    }
   },
-  "platform_app": true,
+
   "icons": {
     "128": "img/icon_128.png"
   },

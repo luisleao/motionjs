@@ -3,7 +3,8 @@ var kinect = (function(){
   //TODO: specific product ids for camera, audio and motor/accelerometer
   
   var vendorId = 0x045e;
-  var productId = 0x02B0;
+//  var productId = 0x02B0;   // motor
+  var productId = 0x02Ae;    // camera
   var tmr_accel;
   
   var accel;
@@ -16,7 +17,6 @@ var kinect = (function(){
   var btnInit=section.querySelector(".init");
   var btnHeadUp=section.querySelector(".head_up");
   var btnHeadDown=section.querySelector(".head_down");
-  var btnGetAccel=section.querySelector(".get_accel");
   var btnDepthStream=section.querySelector(".enable-depth");
   var leds=section.querySelectorAll(".led");
 
@@ -30,7 +30,6 @@ var kinect = (function(){
     flipState(false);
     btnHeadUp.addEventListener("click", headUp);
     btnHeadDown.addEventListener("click", headDown);
-    btnGetAccel.addEventListener("click", getAccel);
     btnDepthStream.addEventListener("click", swapDepthStream);
     btnInit.addEventListener("click", onFindDevice);
   };
@@ -107,7 +106,7 @@ var kinect = (function(){
       */
       
     } else {
-      logObj(e);
+    //  logObj(e);
     }
     
   };
@@ -133,7 +132,6 @@ var kinect = (function(){
     btnHeadUp.disabled=!deviceLocated;
     btnHeadDown.disabled=!deviceLocated;
     btnDepthStream.disabled=!deviceLocated;
-    btnGetAccel.disabled=!deviceLocated;
     
   };
 
@@ -156,10 +154,6 @@ var kinect = (function(){
     motionjs.moveHead(-10);
   };
 
-  var getAccel = function() {
-    motionjs.getAccel();
-  };
-  
   var swapDepthStream = function() {
     if (motionjs.isDepthStreamEnabled()) {
       btnDepthStream.textContent="Off";

@@ -1,4 +1,4 @@
 
 chrome.experimental.app.onLaunched.addListener(function() {
-  chrome.windows.create({url: 'comm.html', type: 'shell', height: 550});
+  chrome.app.window.create('comm.html', {frame: 'custom', height: 550, width: 800});
 });
