@@ -3,9 +3,11 @@ var kinect = (function(){
   //TODO: specific product ids for camera, audio and motor/accelerometer
   
   var vendorId = 0x045e;
-//  var productId = 0x02B0;   // motor
-  var productId = 0x02Ae;    // camera
+  var motor_productId = 0x02B0;   // motor
+  var camera_productId = 0x02Ae;    // camera
   var tmr_accel;
+
+  var motionjs;
   
   var accel;
   var motor_initialized = false;
@@ -21,9 +23,7 @@ var kinect = (function(){
   var leds=section.querySelectorAll(".led");
 
   var init=function() {
-    if (typeof motionjs === "undefined" ) {
-      throw "Dependency error! Please, import motion.js library before.";
-    }
+    motionjs=new MotionJS();
     for (var i=0; i<leds.length; i++) {
       leds[i].addEventListener("click", setLedLight);
     }
@@ -32,11 +32,15 @@ var kinect = (function(){
     btnHeadDown.addEventListener("click", headDown);
     btnDepthStream.addEventListener("click", swapDepthStream);
     btnInit.addEventListener("click", onFindDevice);
+    _testsend.addEventListener("click", function() {
+      motionjs.requestDepthFrame();
+    });
+
   };
 
   var onFindDevice = function(e){
     animateAction();
-    motionjs.findDevice(vendorId, productId, onUsbEvent, findDeviceCallback);
+    motionjs.findDevice(onUsbEvent, onUsbEvent, findDeviceCallback, findDeviceCallback);
   };
 
   
@@ -139,9 +143,8 @@ var kinect = (function(){
   var setLedLight = function(e) {
     animateAction();
     var led_colorname=e.target.value;
-    var led_color=motionjs.LED_LIGHTS[led_colorname];
-    log("setting led light to " + led_colorname+" ("+led_color+")");
-    motionjs.setLed(led_color);
+    log("setting led light to " + led_colorname);
+    motionjs.setLed(led_colorname);
   };
 
   var headUp = function() {

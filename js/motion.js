@@ -18,14 +18,19 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
 */
 
 
-var motionjs__init = function(){
+(function(context){
   var DEBUG=true;
 
+  const DEPTH_NUMPKTS=16;
   const DEPTH_PKTSIZE=1760;
   const VIDEO_PKTSIZE=1920;
 
   const DEPTH_PKTDSIZE=(DEPTH_PKTSIZE-12)
   const VIDEO_PKTDSIZE=(VIDEO_PKTSIZE-12)
+
+  const vendorId = 0x045e;
+  const motor_productId = 0x02B0;   // motor
+  const camera_productId = 0x02Ae;    // camera
 
   var EMPTY_DATA_BUFFER=new Uint8Array([0]).buffer;
 
@@ -45,7 +50,6 @@ var motionjs__init = function(){
   };
   // end of constants
  
-  var deviceId;
   var transferInfo = {
     "requestType": "",
     "recipient": "",
@@ -57,10 +61,14 @@ var motionjs__init = function(){
     "length": 0
   };
 
-  var depthStreamEnabled=false;
-  var motorInitialized=false;
-  var requestCounter=0;
-  
+  function MotionJS() {
+    this.depthStreamEnabled=false;
+    this.motorInitialized=false;
+    this.requestCounter=0;
+    this.motorDeviceId=null;
+    this.cameraDeviceId=null;
+  }
+
   var logAb = function(ab) {
     var abv=new Uint8Array(ab);
     var str='';
@@ -73,40 +81,49 @@ var motionjs__init = function(){
     return str;
   }
 
-  var findDevice = function(vendorId, productId, onUsbEventCallback, onDeviceFoundCallback){
-    chrome.experimental.usb.findDevice(vendorId, productId, 
+  MotionJS.prototype.findDevice = function(onCameraEvent, onMotorEvent, onCameraFound, onMotorFound){
+    var _this=this;
+    chrome.experimental.usb.findDevice(vendorId, motor_productId, 
       {"onEvent": function(e) {
-          if (DEBUG) { 
-            console.log("[motionjs] event on USB: "+(e.data?("result="+e.resultCode+" data="+logAb(e.data)):e)); 
-          };
-          if (onUsbEventCallback) onUsbEventCallback.call(this, e);
-        }
-      }, 
+          if (DEBUG) console.log("[motionjs] motor event on USB: "+(e.data?("result="+e.resultCode+" data="+logAb(e.data)):e)); 
+          if (onMotorEvent) onMotorEvent.call(this, e);
+        }}, 
       function(dId) { 
-        deviceId=dId; 
-        if (DEBUG) { console.log("[motionjs] found device "+JSON.stringify(deviceId)); };
-        if (onDeviceFoundCallback) onDeviceFoundCallback.call(this, dId);
+        _this.motorDeviceId=dId; 
+        if (DEBUG) console.log("[motionjs] found motor device "+JSON.stringify(dId));
+        if (onMotorFound) onMotorFound.call(this, dId);
+      }
+    );
+    chrome.experimental.usb.findDevice(vendorId, camera_productId, 
+      {"onEvent": function(e) {
+          if (DEBUG) console.log("[motionjs] camera event on USB: "+(e.data?("result="+e.resultCode+" data="+logAb(e.data)):e)); 
+          if (onCameraEvent) onCameraEvent.call(this, e);
+        }}, 
+      function(dId) { 
+        _this.cameraDeviceId=dId; 
+        if (DEBUG) console.log("[motionjs] found camera device "+JSON.stringify(dId));
+        if (onCameraFound) onCameraFound.call(this, dId);
       }
     );
   };
 
-  var initMotors = function(callback) {
-    if (motorInitialized) return;
-    motorInitialized = true;
-    sendControl(DIRECTIONS.inbound, 0x10, 0, 0, null, null, 1); 
+  MotionJS.prototype.initMotors = function(callback) {
+    if (this.motorInitialized) return;
+    this.motorInitialized = true;
+    this.sendControl(this.motorDeviceId, DIRECTIONS.inbound, 0x10, 0, 0, null, null, 1); 
   }
 
-  var sendControl = function(direction, request, value, index, data, callback, expectedResponseLength) {
+  MotionJS.prototype.sendControl = function(deviceId, direction, request, value, index, data, callback, expectedResponseLength) {
     var ab;
     if (data && data.length>0) {
       ab=new Uint8Array(data).buffer;
     } else {
       ab=EMPTY_DATA_BUFFER;
     }
-    return sendControlAB(direction, request, value, index, ab, callback, expectedResponseLength);
+    return this.sendControlAB(deviceId, direction, request, value, index, ab, callback, expectedResponseLength);
   } 
 
-  var sendControlAB = function(direction, request, value, index, dataAB, callback, expectedResponseLength) {
+  MotionJS.prototype.sendControlAB = function(deviceId, direction, request, value, index, dataAB, callback, expectedResponseLength) {
     //0x40
     transferInfo.requestType=REQUEST_TYPES.vendor;
     transferInfo.recipient=RECIPIENTS.device;
@@ -117,10 +134,7 @@ var motionjs__init = function(){
     transferInfo.data=dataAB;
     transferInfo.length=expectedResponseLength;
     chrome.experimental.usb.controlTransfer(deviceId, transferInfo, callback);
-    if (DEBUG) { 
-      console.log("[motionjs] sendControl "+JSON.stringify(transferInfo)+ 
-        "  data: "+logAb(dataAB));
-    }
+    if (DEBUG)  console.log("[motionjs] sendControl "+JSON.stringify(transferInfo)+"  data: "+logAb(dataAB));
   }
 
 
@@ -130,21 +144,21 @@ var motionjs__init = function(){
       
      //view WARNINGS about angles. The angles is always relative to the horizon, independent of the position of Kinetic!.
     */
-  var moveHead = function(angle) {
-    initMotors();
-    sendControl(DIRECTIONS.outbound, 0x31, 2*angle, 0, []); 
+  MotionJS.prototype.moveHead = function(angle) {
+    this.initMotors();
+    this.sendControl(this.motorDeviceId, DIRECTIONS.outbound, 0x31, 2*angle, 0, []); 
   };
 
   /*
      type  request  value        index   data   length
      0x40     0x06     led_option   0x0     empty  0
   */
-  var setLed = function(led) {
-    sendControl(DIRECTIONS.outbound, 0x06, led, 0, []); 
+  MotionJS.prototype.setLed = function(ledName) {
+    this.sendControl(this.motorDeviceId, DIRECTIONS.outbound, 0x06, LED_LIGHTS[ledName], 0, []); 
   }
   
-  var getCameraRegister = function(reg, callback) {
-    requestCounter++;
+  MotionJS.prototype.getCameraRegister = function(reg, callback) {
+    this.requestCounter++;
 
     var i=0;
     var ab=new ArrayBuffer(12);
@@ -154,17 +168,17 @@ var motionjs__init = function(){
     data.setUint8(i++, 0x4d);  // magic
     data.setUint16(i, 1, endianess); i+=2;   // length in number of words
     data.setUint16(i, 0x02, endianess); i+=2;  // command (0x03 for setRegister)
-    data.setUint16(i, requestCounter, endianess); i+=2;  // tag (incremental counter to map to async response)
+    data.setUint16(i, this.requestCounter, endianess); i+=2;  // tag (incremental counter to map to async response)
     data.setUint16(i, reg, endianess); i+=2;  // register id
     data.setUint16(i, 0x00, endianess);  
 
     if (DEBUG) console.log("[motionjs] asking for camera register "+reg);
 
-    sendControlAB(DIRECTIONS.inbound, 0, 0, 0, data.buffer, callback, 12);
+    this.sendControlAB(this.cameraDeviceId, DIRECTIONS.inbound, 0, 0, 0, data.buffer, callback, 12);
   }
 
-  var setCameraRegister = function(reg, value, callback) {
-    requestCounter++;
+  MotionJS.prototype.setCameraRegister = function(reg, value, callback) {
+    this.requestCounter++;
 
     var i=0;
     var ab=new ArrayBuffer(12);
@@ -174,16 +188,16 @@ var motionjs__init = function(){
     data.setUint8(i++, 0x4d);  // magic
     data.setUint16(i, 2, endianess); i+=2;   // length in number of words
     data.setUint16(i, 0x03, endianess); i+=2;  // command (0x03 for setRegister)
-    data.setUint16(i, requestCounter, endianess); i+=2;  // tag (incremental counter to map to async response)
+    data.setUint16(i, this.requestCounter, endianess); i+=2;  // tag (incremental counter to map to async response)
     data.setUint16(i, reg, endianess); i+=2;  // register id
     data.setUint16(i, value, endianess);  // value to be set on register
     if (DEBUG) console.log("[motionjs] seting camera register "+reg+" to value "+value);
 
-    sendControlAB(DIRECTIONS.outbound, 0, 0, 0, data.buffer, callback, 12);
+    this.sendControlAB(this.cameraDeviceId, DIRECTIONS.outbound, 0, 0, 0, data.buffer, callback, 4);
   }
 
-  var enableDepthStream = function() {
-    depthStreamEnabled=true;
+  MotionJS.prototype.enableDepthStream = function() {
+    this.depthStreamEnabled=true;
 
 /*
 set register : 0x0006 <= 0x02 ---------------------
@@ -193,16 +207,17 @@ on send_cmd: dev=-109031408 cmd=03 cmd_len=04 reply_len=04 outbuf=47:4D:02:00:03
     sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x05, 0, 0x09, 0, 0x12, 0x00, 0x03, 0], null, 4);
     sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x06, 0, 0x09, 0, 0x13, 0x00, 0x01, 0], null, 4);
     sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x07, 0, 0x09, 0, 0x14, 0x00, 0x1e, 0], null, 4);
-    sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x08, 0, 0x09, 0, 0x06, 0, 0x02, 0], null, 4);
+    sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x03, 0, 0x00, 0, 0x06, 0, 0x02, 0], null, 4);
     sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x09, 0, 0x09, 0, 0x17, 0, 0x00, 0], null, 4);
     sendControlAB(DIRECTIONS.inbound, 0, 0, 0, new ArrayBuffer(0x200), null, 0x200);
 */
-requestDepthFrame();
+//requestDepthFrame();
 
     // ARGH, this is awful! find a solution for the async nature of this
-/*
-    setCameraRegister(0x06, 0x00);
-    setCameraRegister(0x06, 0x02, function() {
+//    setCameraRegister(0x06, 0x00);
+    this.sendControl(this.cameraDeviceId, DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x03, 0, 0x00, 0, 0x06, 0, 0x02, 0], null, 4);
+    //setCameraRegister(0x06, 0x02);
+/*, function() {
       requestDepthFrame();   
     });
 */
@@ -223,86 +238,39 @@ requestDepthFrame();
   */      
 
   }
-  var requestDepthFrame = function() {  
+
+  MotionJS.prototype.requestDepthFrame = function() {  
     var isoInfo = {
       "transferInfo": {
         "direction": DIRECTIONS.inbound,
         "endpoint": CAMERA_ENDPOINTS.depth,
-        "length": 242*DEPTH_PKTSIZE,
+        "length": DEPTH_NUMPKTS*DEPTH_PKTSIZE,
         "data": null
       },
-      "packets": 242,
+      "packets": DEPTH_NUMPKTS,
       "packetLength": DEPTH_PKTSIZE
     };
-    if (DEBUG) { 
-      console.log("[motionjs] sendIsochronous "+JSON.stringify(isoInfo));
-    }
-    chrome.experimental.usb.isochronousTransfer(deviceId, isoInfo);
+    if (DEBUG) console.log("[motionjs] sendIsochronous "+JSON.stringify(isoInfo));
+    chrome.experimental.usb.isochronousTransfer(this.cameraDeviceId, isoInfo);
   }
 
-  var disableDepthStream = function() {
-    depthStreamEnabled=false;
+  MotionJS.prototype.disableDepthStream = function() {
+    this.depthStreamEnabled=false;
   }
 
-  return { 
-    "LED_LIGHTS": LED_LIGHTS,
-    "REQUEST_TYPES": REQUEST_TYPES,
-    "RECIPIENTS": RECIPIENTS,
-    "DIRECTIONS": DIRECTIONS,
-    "findDevice": findDevice,
-    "moveHead": moveHead,
-    "setLed": setLed,
-    "getDeviceId": function() { return deviceId;}, 
-    "enableDepthStream": enableDepthStream,
-    "getCameraRegister": getCameraRegister,
-    "disableDepthStream": disableDepthStream,
-    "isDepthStreamEnabled": function() { return depthStreamEnabled; },
+  MotionJS.prototype.getDeviceId=function() { 
+    return deviceId;
   }
 
-};
-
-var motionjs=motionjs__init();
-
-
-  var logAb = function(ab) {
-    if (ab===null) return null;
-    var abv=new Uint8Array(ab);
-    var str='';
-    for (var i=0; i<abv.length; i++) {
-      str+=abv[i].toString(16)+' '
-    }
-    return str;
+  MotionJS.prototype.isDepthStreamEnabled=function() { 
+    return this.depthStreamEnabled;
   }
-  var abFromStr = function(str) {
-    if (!str) return null;
-    var data=str.trim().split(/ +/);
-    if (data.length===0) return null;
-    var ab=new ArrayBuffer(data.length);
-    var abv=new Uint8Array(ab);
-    for (var i=0; i<data.length; i++) {
-      abv[i]=parseInt(data[i], 16);
-    }
-    return ab;
-  }
-  _tpackets.addEventListener("change", function() {
-    _tlength.value=parseInt(_tpacketLength.value)*parseInt(_tpackets.value);
-  });
-  _tpacketLength.addEventListener("change", function() {
-    _tlength.value=parseInt(_tpacketLength.value)*parseInt(_tpackets.value);
-  });
-  _testsend.addEventListener("click", function() {
-    var data= abFromStr(_tdata.value);
-    var isoInfo = {
-      "transferInfo": {
-        "direction": _tdir.options[_tdir.selectedIndex].value,
-        "endpoint": 0x82,
-        "length": parseInt(_tlength.value),
-        "data": data
-      },
-      "packets": parseInt(_tpackets.value),
-      "packetLength": parseInt(_tpacketLength.value)
-    };
-    console.log("[motionjs] sendIsochronous "+JSON.stringify(isoInfo)+" data: "+logAb(data));
+
+  context.MotionJS=MotionJS;
+
+})(window);
+
+
 /*
 On libfreenct:
   #define PKTS_PER_XFER 16
@@ -391,5 +359,3 @@ CHECK THIS: (why endpoint = direction | endpoint? makes sense?)
 
 */
 
-    chrome.experimental.usb.isochronousTransfer(motionjs.getDeviceId(), isoInfo, function() {console.log("sent status=");});
-   });
