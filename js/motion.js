@@ -50,17 +50,6 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
   };
   // end of constants
  
-  var transferInfo = {
-    "requestType": "",
-    "recipient": "",
-    "direction": "",
-    "request": 0,
-    "value": 0,
-    "index": 0,
-    "data": null,
-    "length": 0
-  };
-
   function MotionJS() {
     this.depthStreamEnabled=false;
     this.motorInitialized=false;
@@ -125,14 +114,16 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
 
   MotionJS.prototype.sendControlAB = function(deviceId, direction, request, value, index, dataAB, callback, expectedResponseLength) {
     //0x40
-    transferInfo.requestType=REQUEST_TYPES.vendor;
-    transferInfo.recipient=RECIPIENTS.device;
-    transferInfo.direction=direction;
-    transferInfo.request=request;
-    transferInfo.value=value;
-    transferInfo.index=index;
-    transferInfo.data=dataAB;
-    transferInfo.length=expectedResponseLength;
+    var transferInfo={
+      "requestType":REQUEST_TYPES.vendor,
+      "recipient":RECIPIENTS.device,
+      "direction":direction,
+      "request":request,
+      "value":value,
+      "index":index,
+      "data":dataAB,
+      "length":expectedResponseLength
+    };
     chrome.experimental.usb.controlTransfer(deviceId, transferInfo, callback);
     if (DEBUG)  console.log("[motionjs] sendControl "+JSON.stringify(transferInfo)+"  data: "+logAb(dataAB));
   }
@@ -214,9 +205,8 @@ on send_cmd: dev=-109031408 cmd=03 cmd_len=04 reply_len=04 outbuf=47:4D:02:00:03
 //requestDepthFrame();
 
     // ARGH, this is awful! find a solution for the async nature of this
-//    setCameraRegister(0x06, 0x00);
-    this.sendControl(this.cameraDeviceId, DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x03, 0, 0x00, 0, 0x06, 0, 0x02, 0], null, 4);
-    //setCameraRegister(0x06, 0x02);
+//    this.sendControl(this.cameraDeviceId, DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x03, 0, 0x00, 0, 0x06, 0, 0x02, 0], null, 4);
+    this.setCameraRegister(0x06, 0x02);
 /*, function() {
       requestDepthFrame();   
     });
@@ -255,6 +245,7 @@ on send_cmd: dev=-109031408 cmd=03 cmd_len=04 reply_len=04 outbuf=47:4D:02:00:03
   }
 
   MotionJS.prototype.disableDepthStream = function() {
+    this.setCameraRegister(0x06, 0x00);
     this.depthStreamEnabled=false;
   }
 
