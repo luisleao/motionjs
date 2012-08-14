@@ -190,62 +190,92 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
   MotionJS.prototype.enableDepthStream = function() {
     this.depthStreamEnabled=true;
 
-/*
-set register : 0x0006 <= 0x02 ---------------------
-on send_cmd: dev=-109031408 cmd=03 cmd_len=04 reply_len=04 outbuf=47:4D:02:00:03:00:09:00:06:00:02:00  inbuf=52:42:01:00:03:00:09:00:00:00
-    sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x03, 0, 0x09, 0, 0x05, 0x01, 0x00, 0], null, 4);
-    sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x04, 0, 0x09, 0, 0x06, 0, 0x00, 0], null, 4);
-    sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x05, 0, 0x09, 0, 0x12, 0x00, 0x03, 0], null, 4);
-    sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x06, 0, 0x09, 0, 0x13, 0x00, 0x01, 0], null, 4);
-    sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x07, 0, 0x09, 0, 0x14, 0x00, 0x1e, 0], null, 4);
-    sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x03, 0, 0x00, 0, 0x06, 0, 0x02, 0], null, 4);
-    sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x09, 0, 0x09, 0, 0x17, 0, 0x00, 0], null, 4);
-    sendControlAB(DIRECTIONS.inbound, 0, 0, 0, new ArrayBuffer(0x200), null, 0x200);
-*/
-//requestDepthFrame();
+    /*
+    set register : 0x0006 <= 0x02 ---------------------
+    on send_cmd: dev=-109031408 cmd=03 cmd_len=04 reply_len=04 outbuf=47:4D:02:00:03:00:09:00:06:00:02:00  inbuf=52:42:01:00:03:00:09:00:00:00
+        sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x03, 0, 0x09, 0, 0x05, 0x01, 0x00, 0], null, 4);
+        sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x04, 0, 0x09, 0, 0x06, 0, 0x00, 0], null, 4);
+        sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x05, 0, 0x09, 0, 0x12, 0x00, 0x03, 0], null, 4);
+        sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x06, 0, 0x09, 0, 0x13, 0x00, 0x01, 0], null, 4);
+        sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x07, 0, 0x09, 0, 0x14, 0x00, 0x1e, 0], null, 4);
+        sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x03, 0, 0x00, 0, 0x06, 0, 0x02, 0], null, 4);
+        sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x09, 0, 0x09, 0, 0x17, 0, 0x00, 0], null, 4);
+        sendControlAB(DIRECTIONS.inbound, 0, 0, 0, new ArrayBuffer(0x200), null, 0x200);
+    */
+
+    this.setCameraRegister(0x105, 0x00); // Disable auto-cycle of projector
+    this.setCameraRegister(0x06, 0x00); // reset depth stream
+
+    this.setCameraRegister(0x12, 0x03); // 11-bit stream (Depth Stream Format)
+    this.setCameraRegister(0x13, 0x01); // standard - 640x480 (Depth Stream Resolution)
+    this.setCameraRegister(0x14, 0x1e); // 30 fps (Depth Framerate)
+    this.setCameraRegister(0x06, 0x02); // start depth stream
+    this.setCameraRegister(0x17, 0x00); // disable depth hflip
+
+    //clear buffer data to work
+    this.sendControlAB(this.cameraDeviceId, DIRECTIONS.inbound, 0, 0, 0, new ArrayBuffer(0x200), null, 0x200);
+
+
 
     // ARGH, this is awful! find a solution for the async nature of this
-//    this.sendControl(this.cameraDeviceId, DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x03, 0, 0x00, 0, 0x06, 0, 0x02, 0], null, 4);
-    this.setCameraRegister(0x06, 0x02);
-/*, function() {
-      requestDepthFrame();   
-    });
-*/
-/*
-    setCameraRegister(0x105, 0x00, function() { // Disable auto-cycle of projector
-      setCameraRegister(0x06, 0x00, function() { // reset depth stream
-        setCameraRegister(0x12, 0x03, function() { // set stream format to 11bit
-          setCameraRegister(0x13, 0x01, function() { // set resolution to standard
-            setCameraRegister(0x14, 0x1e, function() { // set framerate to 30fps
-              setCameraRegister(0x17, 0x00, function() { // disable depth hflip
-                setCameraRegister(0x06, 0x02); // start depth stream
-              });
-            });
-          });
-        });
-      });
-    });
-  */      
-
+    //this.sendControl(this.cameraDeviceId, DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x03, 0, 0x00, 0, 0x06, 0, 0x02, 0], null, 4);
   }
 
   MotionJS.prototype.requestDepthFrame = function() {  
+
+
+    // funcionamento para carregar:
+    // gera a isochronus primeiro antes de ativar o IR
+    // ou seja, chamar enableDepthStream após inicializar isochronus
+
+    //res = fnusb_start_iso(&dev->usb_cam, &dev->depth_isoc, depth_process, 0x82, NUM_XFERS, PKTS_PER_XFER, DEPTH_PKTBUF);
+    //      fnusb_start_iso(fnusb_dev *dev, fnusb_isoc_stream *strm, fnusb_iso_cb cb, int ep, int xfers, int pkts, int len)
+
+
+    // funcionamento na freekinect
+    // freenect_start_depth
+    //   dev->depth.pkt_size = DEPTH_PKTDSIZE;
+    //   dev->depth.flag = 0x70;
+    //   dev->depth.variable_length = 0;
+    
+    //   stream_init(ctx, &dev->depth, freenect_find_depth_mode(dev->depth_resolution, FREENECT_DEPTH_11BIT_PACKED).bytes, freenect_find_depth_mode(dev->depth_resolution, FREENECT_DEPTH_11BIT).bytes);
+         // ou
+    //   stream_init(ctx, &dev->depth, 0, freenect_find_depth_mode(dev->depth_resolution, dev->depth_format).bytes);
+    
+    //   res = fnusb_start_iso(&dev->usb_cam, &dev->depth_isoc, depth_process, 0x82, NUM_XFERS, PKTS_PER_XFER, DEPTH_PKTBUF);
+    //     (a fnusb_start_iso aloca os pacotes)
+    //     libusb_alloc_transfer(pkts);
+
+    console.log(DEPTH_NUMPKTS, DEPTH_PKTSIZE);
+
     var isoInfo = {
       "transferInfo": {
         "direction": DIRECTIONS.inbound,
         "endpoint": CAMERA_ENDPOINTS.depth,
         "length": DEPTH_NUMPKTS*DEPTH_PKTSIZE,
-        "data": null
+        "data": new ArrayBuffer(30720)
       },
       "packets": DEPTH_NUMPKTS,
       "packetLength": DEPTH_PKTSIZE
     };
     if (DEBUG) console.log("[motionjs] sendIsochronous "+JSON.stringify(isoInfo));
-    chrome.experimental.usb.isochronousTransfer(this.cameraDeviceId, isoInfo);
+    
+
+    chrome.experimental.usb.isochronousTransfer(this.cameraDeviceId, isoInfo, function(){
+      console.info("iso_callback");
+      console.info(arguments.length);
+      console.debug(arguments);
+      console.info("end iso");
+    });
+
+
   }
 
   MotionJS.prototype.disableDepthStream = function() {
     this.setCameraRegister(0x06, 0x00);
+    
+    //clear buffer data to work
+    this.sendControlAB(this.cameraDeviceId, DIRECTIONS.inbound, 0, 0, 0, new ArrayBuffer(0x200), null, 0x200);
     this.depthStreamEnabled=false;
   }
 

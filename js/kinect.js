@@ -8,7 +8,7 @@ var kinect = (function(){
   var tmr_accel;
 
   var motionjs;
-  
+
   var accel;
   var motor_initialized = false;
 
@@ -24,6 +24,8 @@ var kinect = (function(){
 
   var init=function() {
     motionjs=new MotionJS();
+    window.motionjs = motionjs;
+
     for (var i=0; i<leds.length; i++) {
       leds[i].addEventListener("click", setLedLight);
     }
