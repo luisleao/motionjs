@@ -19,7 +19,7 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
 
 
 (function(context){
-  var DEBUG=true;
+  var DEBUG=false;
 
   const DEPTH_NUMPKTS=16;
   const DEPTH_PKTSIZE=1760;
@@ -31,6 +31,7 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
   const vendorId = 0x045e;
   const motor_productId = 0x02B0;   // motor
   const camera_productId = 0x02Ae;    // camera
+  const endianess=true;
 
   var EMPTY_DATA_BUFFER=new Uint8Array([0]).buffer;
 
@@ -70,6 +71,7 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
     return str;
   }
 
+
   MotionJS.prototype.findDevice = function(onCameraEvent, onMotorEvent, onCameraFound, onMotorFound){
     var _this=this;
     chrome.experimental.usb.findDevice(vendorId, motor_productId, 
@@ -85,8 +87,9 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
     );
     chrome.experimental.usb.findDevice(vendorId, camera_productId, 
       {"onEvent": function(e) {
-          if (DEBUG) console.log("[motionjs] camera event on USB: "+(e.data?("result="+e.resultCode+" data="+logAb(e.data)):e)); 
-          if (onCameraEvent) onCameraEvent.call(this, e);
+          _this.processDepthFrame(e.data);
+//          if (DEBUG) console.log("[motionjs] camera event on USB: "+(e.data?("result="+e.resultCode+" data="+logAb(e.data)):e)); 
+//          if (onCameraEvent) onCameraEvent.call(this, e);
         }}, 
       function(dId) { 
         _this.cameraDeviceId=dId; 
@@ -154,7 +157,6 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
     var i=0;
     var ab=new ArrayBuffer(12);
     var data=new DataView(ab);
-    var endianess=false;
     data.setUint8(i++, 0x47);  // magic
     data.setUint8(i++, 0x4d);  // magic
     data.setUint16(i, 1, endianess); i+=2;   // length in number of words
@@ -174,7 +176,6 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
     var i=0;
     var ab=new ArrayBuffer(12);
     var data=new DataView(ab);
-    var endianess=true;
     data.setUint8(i++, 0x47);  // magic
     data.setUint8(i++, 0x4d);  // magic
     data.setUint16(i, 2, endianess); i+=2;   // length in number of words
@@ -190,21 +191,11 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
   MotionJS.prototype.enableDepthStream = function() {
     this.depthStreamEnabled=true;
 
-    /*
-    set register : 0x0006 <= 0x02 ---------------------
-    on send_cmd: dev=-109031408 cmd=03 cmd_len=04 reply_len=04 outbuf=47:4D:02:00:03:00:09:00:06:00:02:00  inbuf=52:42:01:00:03:00:09:00:00:00
-        sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x03, 0, 0x09, 0, 0x05, 0x01, 0x00, 0], null, 4);
-        sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x04, 0, 0x09, 0, 0x06, 0, 0x00, 0], null, 4);
-        sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x05, 0, 0x09, 0, 0x12, 0x00, 0x03, 0], null, 4);
-        sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x06, 0, 0x09, 0, 0x13, 0x00, 0x01, 0], null, 4);
-        sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x07, 0, 0x09, 0, 0x14, 0x00, 0x1e, 0], null, 4);
-        sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x03, 0, 0x00, 0, 0x06, 0, 0x02, 0], null, 4);
-        sendControl(DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x09, 0, 0x09, 0, 0x17, 0, 0x00, 0], null, 4);
-        sendControlAB(DIRECTIONS.inbound, 0, 0, 0, new ArrayBuffer(0x200), null, 0x200);
-    */
-
     this.setCameraRegister(0x105, 0x00); // Disable auto-cycle of projector
     this.setCameraRegister(0x06, 0x00); // reset depth stream
+
+//    var _this=this;
+//    webkitRequestAnimationFrame(function() { _this.requestDepthFrame() });
 
     this.setCameraRegister(0x12, 0x03); // 11-bit stream (Depth Stream Format)
     this.setCameraRegister(0x13, 0x01); // standard - 640x480 (Depth Stream Resolution)
@@ -212,14 +203,42 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
     this.setCameraRegister(0x06, 0x02); // start depth stream
     this.setCameraRegister(0x17, 0x00); // disable depth hflip
 
-    //clear buffer data to work
+    //clear buffer data  // apparent hack grabbed from freenect
     this.sendControlAB(this.cameraDeviceId, DIRECTIONS.inbound, 0, 0, 0, new ArrayBuffer(0x200), null, 0x200);
 
-
-
-    // ARGH, this is awful! find a solution for the async nature of this
-    //this.sendControl(this.cameraDeviceId, DIRECTIONS.outbound, 0, 0, 0, [0x47, 0x4d, 0x02, 0, 0x03, 0, 0x00, 0, 0x06, 0, 0x02, 0], null, 4);
   }
+
+  MotionJS.prototype.processDepthFrame = function(responseAB) {
+    var response=new DataView(responseAB);
+    if (response.getUint8(0)===0x52 && response.getUint8(1)===0x42) {  // "RB" is the magic bytes for camera response
+      if (response.getUint8(2)===0x00) {   // 0 == control data
+        var cmd, seqNum, pkt_seq, lengthHigh, lengthLow, timestamp;
+        var cmd=response.getUint8(3),
+            seqNum=response.getUint8(4),
+            pkt_seq=response.getUint8(5),
+            lengthHigh=response.getUint8(6),
+            lengthHigh=response.getUint8(7),
+            lengthLow=response.getUint8(8),
+            timestamp=response.getUint16(9, endianess);
+       
+        console.log("cmd="+cmd.toString(16)+" seqNum="+seqNum+" pkt_seq="+pkt_seq+" length1="+(lengthHigh*256+lengthLow)+" length2="+(lengthLow*256+lengthHigh)+" timestamp="+timestamp+" datalen="+(responseAB.byteLength-11));
+/*
+        switch (response.getUint8(3)) {
+          case (0x71):
+            break;
+        } */
+      } else {
+        if (DEBUG) console.log("ignoring packet, has magic number but control is "+response.getUint8(2));
+      }
+    } else {
+        if (DEBUG) console.log("ignoring packet, no magic number");
+    }
+    if (this.depthStreamEnabled) {
+      var _this=this;
+      webkitRequestAnimationFrame(function() { _this.requestDepthFrame() });
+    }
+  }
+
 
   MotionJS.prototype.requestDepthFrame = function() {  
 
@@ -246,14 +265,12 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
     //     (a fnusb_start_iso aloca os pacotes)
     //     libusb_alloc_transfer(pkts);
 
-    console.log(DEPTH_NUMPKTS, DEPTH_PKTSIZE);
-
     var isoInfo = {
       "transferInfo": {
         "direction": DIRECTIONS.inbound,
         "endpoint": CAMERA_ENDPOINTS.depth,
         "length": DEPTH_NUMPKTS*DEPTH_PKTSIZE,
-        "data": new ArrayBuffer(30720)
+        "data": null
       },
       "packets": DEPTH_NUMPKTS,
       "packetLength": DEPTH_PKTSIZE
@@ -261,13 +278,7 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
     if (DEBUG) console.log("[motionjs] sendIsochronous "+JSON.stringify(isoInfo));
     
 
-    chrome.experimental.usb.isochronousTransfer(this.cameraDeviceId, isoInfo, function(){
-      console.info("iso_callback");
-      console.info(arguments.length);
-      console.debug(arguments);
-      console.info("end iso");
-    });
-
+    chrome.experimental.usb.isochronousTransfer(this.cameraDeviceId, isoInfo);
 
   }
 
