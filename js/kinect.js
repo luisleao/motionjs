@@ -12,7 +12,6 @@ var kinect = (function(){
   var accel;
   var motor_initialized = false;
 
-
   var section=document.querySelector("#kinect");
   var logArea=section.querySelector(".log");
 
@@ -37,12 +36,72 @@ var kinect = (function(){
     _testsend.addEventListener("click", function() {
       motionjs.requestDepthFrame();
     });
+    document.getElementById("_createlog").addEventListener("click", function() {
+      createLog();
+    });
 
   };
 
+  var createLog = function() {
+    var errorHandler=function(e) {
+      var msg = '';
+
+      switch (e.code) {
+        case FileError.QUOTA_EXCEEDED_ERR:
+          msg = 'QUOTA_EXCEEDED_ERR';
+          break;
+        case FileError.NOT_FOUND_ERR:
+          msg = 'NOT_FOUND_ERR';
+          break;
+        case FileError.SECURITY_ERR:
+          msg = 'SECURITY_ERR';
+          break;
+        case FileError.INVALID_MODIFICATION_ERR:
+          msg = 'INVALID_MODIFICATION_ERR';
+          break;
+        case FileError.INVALID_STATE_ERR:
+          msg = 'INVALID_STATE_ERR';
+          break;
+        default:
+          msg = 'Unknown Error';
+          break;
+      };
+
+      console.log('Error: ' + msg);
+    };
+
+    var onInitFs=function(fs) {
+
+      fs.root.getFile('log_'+Date.now()+'.txt', {create: true}, function(fileEntry) {
+        fileEntry.createWriter(function(fileWriter) {
+
+          fileWriter.onwriteend = function(e) {
+            console.log('Write completed.');
+            document.getElementById("logfile").style.visibility="visible";
+            document.getElementById("logfile").href=fileEntry.toURL();
+            document.getElementById("logfile").setAttribute("download", "log.txt");
+          };
+
+          fileWriter.onerror = function(e) {
+            console.error('Write failed: ' + e.toString());
+          };
+
+          // // Create a new Blob and write it to log.bin.
+          var blob = new Blob([JSON.stringify(motionjs.getDebugData())], {type: 'text/plain'});
+
+          fileWriter.write(blob);
+        }, errorHandler);
+
+      }, errorHandler);
+
+    };
+
+    window.webkitRequestFileSystem(window.TEMPORARY, 5*1024*1024*1024, onInitFs, errorHandler);
+  }
+
   var onFindDevice = function(e){
     animateAction();
-    motionjs.findDevice(onUsbEvent, onUsbEvent, findDeviceCallback, findDeviceCallback);
+    motionjs.findDevice(null, null, findDeviceCallback, findDeviceCallback);
   };
 
   
@@ -59,71 +118,13 @@ var kinect = (function(){
     });
   };
 
-  var onUsbEvent=function(e) {
-    
-    /*
-    when receiving accelerometer data:
-    
-    the 8th byte (buf[8]) yields:
-     positive_angle_degrees = value/2
-     negative_angle_degrees = (255-value)/2
-
-    buf[8] = 0x80 if the kinect is moving (buf[9] is usually 0x04, but sometimes 0x00)
-    Please note that this is not the angle of the motor, this is the angle of the kinect itself in degrees (basically accelerometer data translated)
-
-    the 9th byte (buf[9]) yields the following status codes:
-     0x0 - stopped
-     0x1 - reached limits
-     0x4 - moving
-    */
-    if (e.data && e.data.length == 10) {
-       console.log("[kinect] accelerometer event.");
-      
-      /*
-      
-      var x = (e.data[2] << 8) | e.data[3];
-      x = (x + Math.pow(2,15)) % Math.pow(2,16) - Math.pow(2,15);  //# convert to signed 16b
-      
-      var y = (e.data[4] << 8) | e.data[5];
-      y = (y + Math.pow(2,15)) % Math.pow(2,16) - Math.pow(2,15);  //# convert to signed 16b
-      
-      var z = (e.data[6] << 8) | e.data[7];
-      z = (x + Math.pow(2,15)) % Math.pow(2,16) - Math.pow(2,15);  //# convert to signed 16b
-      
-      if (DEBUG) { console.log("[motionjs] accelerometer [" +x+ ", " +y+ ", " +z+ "]") };
-
-      
-      x = (ret[2] << 8) | ret[3]
-      x = (x + Math.pow(2,15)) % Math.pow(2,16) - Math.pow(2,15)     # convert to signed 16b
-      y = (ret[4] << 8) | ret[5]
-      y = (y + Math.pow(2,15)) % Math.pow(2,16) - Math.pow(2,15)     # convert to signed 16b
-      z = (ret[6] << 8) | ret[7]
-      z = (x + Math.pow(2,15)) % Math.pow(2,16) - Math.pow(2,15)     # convert to signed 16b
-
-      print x, "\t", y, "\t", z
-      
-      moving sample
-      0: 64, 1: 49, 2: 236, 3: 255, 4: 0, 5: 0, 6: 10, 7: 0, 8: 0, 9: 0
-      0: 64, 1: 49, 2: 20, 3: 0, 4: 0, 5: 0, 6: 10, 7: 0, 8: 0, 9: 0
-      
-      normal condition sample
-      0: 192, 1: 50, 2: 0, 3: 0, 4: 0, 5: 0, 6: 10, 7: 0, 8: 0, 9: 0
-      
-      */
-      
-    } else {
-    //  logObj(e);
-    }
-    
-  };
-
   var findDeviceCallback=function(dId) {
     if (!dId) {
       logError("could not find device (deviceId="+dId+")");
       flipState(false);
     } else {
       deviceId=dId;
-      logSuccess("Device found (deviceId="+dId+")");
+      logSuccess("Device found (deviceId="+JSON.stringify(dId)+")");
 //      tmr_accel = setInterval(get_accel, 1000);
       flipState(true);
     }

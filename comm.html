@@ -55,12 +55,9 @@ Author: Luis Leao (luisleao@gmail.com)
     <label>Depth stream: </label><button class="enable-depth">Off</button><br/>
     <canvas id="depth" width="160px" height="120px"></canvas>
   </section>
-Direction: <select id="_tdir"><option value="in" selected>in</option><option value="out">out</option></select>&nbsp;
-Length: <input id="_tlength" type="text" style="width: 80px" value="30720"></input>&nbsp;
-packets: <input id="_tpackets" type="text" style="width: 80px" value="16"></input>&nbsp;
-packetLength: <input id="_tpacketLength" type="text" style="width: 80px" value="1920"></input><br/>
-Data: <input id="_tdata" type="text" style="width: 200px"></input>&nbsp;
-<button id="_testsend">send</button>
+  <button id="_testsend">send</button>
+  <button id="_createlog">Create log</button>
+  <a id="logfile" style="visibility: hidden;" href="#">Donwload log</a>
   <script src="js/motion.js"></script>
   <script src="js/kinect.js"></script>
 </body>

@@ -19,8 +19,17 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
 
 
 (function(context){
-  var DEBUG=false;
+  var DEBUG=true;
+  var DEBUG_DATA=true;
 
+  // for Mac:
+  /*
+  const DEPTH_NUMPKTS=128;
+  const DEPTH_PKTSIZE=2048;
+  const VIDEO_PKTSIZE=2048;*/
+
+
+  // for Linux:
   const DEPTH_NUMPKTS=16;
   const DEPTH_PKTSIZE=1760;
   const VIDEO_PKTSIZE=1920;
@@ -32,6 +41,7 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
   const motor_productId = 0x02B0;   // motor
   const camera_productId = 0x02Ae;    // camera
   const endianess=true;
+
 
   var EMPTY_DATA_BUFFER=new Uint8Array([0]).buffer;
 
@@ -57,26 +67,31 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
     this.requestCounter=0;
     this.motorDeviceId=null;
     this.cameraDeviceId=null;
+    this.debugData = [];
   }
 
   var logAb = function(ab) {
+    logAbFull(ab, false);
+  }
+
+  var logAbFull = function(ab, all) {
     var abv=new Uint8Array(ab);
     var str='';
-    for (var i=0; i<abv.length && i<512; i++) {
+    for (var i=0; i<abv.length && (all || i<512); i++) {
       str+=abv[i].toString(16)+' '
     }
-    if (abv.length>=512) {
+    if (!all && abv.length>=512) {
       str+=((abv.length-511)+' more bytes hidden');
     }
     return str;
   }
-
 
   MotionJS.prototype.findDevice = function(onCameraEvent, onMotorEvent, onCameraFound, onMotorFound){
     var _this=this;
     chrome.experimental.usb.findDevice(vendorId, motor_productId, 
       {"onEvent": function(e) {
           if (DEBUG) console.log("[motionjs] motor event on USB: "+(e.data?("result="+e.resultCode+" data="+logAb(e.data)):e)); 
+          if (DEBUG_DATA) _this.debugData.push({"timestamp": Date.now(), "device": "motor", "direction": "tocomputer", "event": e, "event.data": logAbFull(e.data, true)});
           if (onMotorEvent) onMotorEvent.call(this, e);
         }}, 
       function(dId) { 
@@ -87,9 +102,10 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
     );
     chrome.experimental.usb.findDevice(vendorId, camera_productId, 
       {"onEvent": function(e) {
+          if (DEBUG_DATA) _this.debugData.push({"timestamp": Date.now(), "device": "camera", "direction": "tocomputer", "event": e});
+          //if (onCameraEvent) onCameraEvent.call(this, e);
           _this.processDepthFrame(e.data);
 //          if (DEBUG) console.log("[motionjs] camera event on USB: "+(e.data?("result="+e.resultCode+" data="+logAb(e.data)):e)); 
-//          if (onCameraEvent) onCameraEvent.call(this, e);
         }}, 
       function(dId) { 
         _this.cameraDeviceId=dId; 
@@ -127,6 +143,7 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
       "data":dataAB,
       "length":expectedResponseLength
     };
+    if (DEBUG_DATA) this.debugData.push({"timestamp": Date.now(), "device": "motor", "direction": "todevice", "transferInfo": transferInfo, "info.data": logAbFull(dataAB, true)});
     chrome.experimental.usb.controlTransfer(deviceId, transferInfo, callback);
     if (DEBUG)  console.log("[motionjs] sendControl "+JSON.stringify(transferInfo)+"  data: "+logAb(dataAB));
   }
@@ -221,21 +238,21 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
             lengthLow=response.getUint8(8),
             timestamp=response.getUint16(9, endianess);
        
-        console.log("cmd="+cmd.toString(16)+" seqNum="+seqNum+" pkt_seq="+pkt_seq+" length1="+(lengthHigh*256+lengthLow)+" length2="+(lengthLow*256+lengthHigh)+" timestamp="+timestamp+" datalen="+(responseAB.byteLength-11));
+//        console.log("cmd="+cmd.toString(16)+" seqNum="+seqNum+" pkt_seq="+pkt_seq+" length1="+(lengthHigh*256+lengthLow)+" length2="+(lengthLow*256+lengthHigh)+" timestamp="+timestamp+" datalen="+(responseAB.byteLength-11));
 /*
         switch (response.getUint8(3)) {
           case (0x71):
             break;
         } */
+        if (this.depthStreamEnabled) {
+          var _this=this;
+          window.setTimeout(function() { _this.requestDepthFrame() }, 0);
+        }
       } else {
         if (DEBUG) console.log("ignoring packet, has magic number but control is "+response.getUint8(2));
       }
     } else {
         if (DEBUG) console.log("ignoring packet, no magic number");
-    }
-    if (this.depthStreamEnabled) {
-      var _this=this;
-      webkitRequestAnimationFrame(function() { _this.requestDepthFrame() });
     }
   }
 
@@ -275,8 +292,8 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
       "packets": DEPTH_NUMPKTS,
       "packetLength": DEPTH_PKTSIZE
     };
+    if (DEBUG_DATA) this.debugData.push({"timestamp": Date.now(), "device": "camera", "direction": "todevice", "isoinfo": isoinfo});
     if (DEBUG) console.log("[motionjs] sendIsochronous "+JSON.stringify(isoInfo));
-    
 
     chrome.experimental.usb.isochronousTransfer(this.cameraDeviceId, isoInfo);
 
@@ -296,6 +313,10 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
 
   MotionJS.prototype.isDepthStreamEnabled=function() { 
     return this.depthStreamEnabled;
+  }
+
+  MotionJS.prototype.getDebugData=function() {
+    return this.debugData;
   }
 
   context.MotionJS=MotionJS;
