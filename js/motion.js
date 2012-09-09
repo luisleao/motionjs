@@ -292,7 +292,7 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
       "packets": DEPTH_NUMPKTS,
       "packetLength": DEPTH_PKTSIZE
     };
-    if (DEBUG_DATA) this.debugData.push({"timestamp": Date.now(), "device": "camera", "direction": "todevice", "isoinfo": isoinfo});
+    if (DEBUG_DATA) this.debugData.push({"timestamp": Date.now(), "device": "camera", "direction": "todevice", "isoinfo": isoInfo});
     if (DEBUG) console.log("[motionjs] sendIsochronous "+JSON.stringify(isoInfo));
 
     chrome.experimental.usb.isochronousTransfer(this.cameraDeviceId, isoInfo);
