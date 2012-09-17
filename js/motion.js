@@ -19,23 +19,24 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
 
 
 (function(context){
-  var DEBUG=true;
-  var DEBUG_DATA=true;
+  var DEBUG=false;
+  var DEBUG_DATA=false;
 
   // for Mac:
+  
   /*
   const DEPTH_NUMPKTS=128;
-  const DEPTH_PKTSIZE=2048;
-  const VIDEO_PKTSIZE=2048;*/
-
+  const DEPTH_PKTSIZE=1760;
+  const VIDEO_PKTSIZE=2048;
+  
+  */
 
   // for Linux:
   const DEPTH_NUMPKTS=16;
+  const DEPTH_PKTBUF=1920;
   const DEPTH_PKTSIZE=1760;
-  const VIDEO_PKTSIZE=1920;
-
+  
   const DEPTH_PKTDSIZE=(DEPTH_PKTSIZE-12)
-  const VIDEO_PKTDSIZE=(VIDEO_PKTSIZE-12)
 
   const vendorId = 0x045e;
   const motor_productId = 0x02B0;   // motor
@@ -68,22 +69,53 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
     this.motorDeviceId=null;
     this.cameraDeviceId=null;
     this.debugData = [];
+    this.framePosition=-1;
+    this.canvasContext=null;
+    this.imageData=null;
+    this.bitsPerPixel=1;
+    this.lastTimestamp=0;
+    this.lastSeq=0;
+    this.currentSeq=0;
   }
 
   var logAb = function(ab) {
-    logAbFull(ab, false);
+    return logAbFull(ab, false);
   }
 
   var logAbFull = function(ab, all) {
+    var SHOW_ONLY=40;
     var abv=new Uint8Array(ab);
     var str='';
-    for (var i=0; i<abv.length && (all || i<512); i++) {
+    for (var i=0; i<abv.length && (all || i<SHOW_ONLY); i++) {
       str+=abv[i].toString(16)+' '
     }
-    if (!all && abv.length>=512) {
-      str+=((abv.length-511)+' more bytes hidden');
+    if (!all && abv.length>=SHOW_ONLY) {
+      str+=((abv.length-SHOW_ONLY)+' more bytes hidden');
     }
     return str;
+  }
+
+  MotionJS.prototype.setCanvas= function(canvasContext, bitsPerPixel) {
+    this.canvasContext=canvasContext;
+    this.bitsPerPixel=bitsPerPixel;
+    this.imageData=canvasContext.getImageData(0, 0, 640/bitsPerPixel, 480/bitsPerPixel);
+    
+    
+    // debug:
+    document.addEventListener('DOMContentLoaded', function() {
+      var b=document.createElement('button');
+      var bp=document.createElement('button');
+      b.innerText="-decrease";
+      bp.innerText="+increase";
+      b.addEventListener('click', function() {
+        expected_pkt_size--;
+      });
+      bp.addEventListener('click', function() {
+        expected_pkt_size++;
+      });
+      document.body.appendChild(b);
+      document.body.appendChild(bp);
+    });
   }
 
   MotionJS.prototype.findDevice = function(onCameraEvent, onMotorEvent, onCameraFound, onMotorFound){
@@ -102,10 +134,21 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
     );
     chrome.experimental.usb.findDevice(vendorId, camera_productId, 
       {"onEvent": function(e) {
-          if (DEBUG_DATA) _this.debugData.push({"timestamp": Date.now(), "device": "camera", "direction": "tocomputer", "event": e});
+          //if (DEBUG_DATA) _this.debugData.push({"timestamp": Date.now(), "device": "camera", "direction": "tocomputer", "event": e});
           //if (onCameraEvent) onCameraEvent.call(this, e);
-          _this.processDepthFrame(e.data);
-//          if (DEBUG) console.log("[motionjs] camera event on USB: "+(e.data?("result="+e.resultCode+" data="+logAb(e.data)):e)); 
+          var offset=0;
+          for (var i=0; i<DEPTH_NUMPKTS && offset<e.data.byteLength-DEPTH_PKTBUF; i++, offset+=DEPTH_PKTBUF) {
+            _this.processDepthFrame(new Uint8Array(e.data, offset, DEPTH_PKTBUF));
+          }
+          if (_this.canvasContext && _this.imageData) {
+            _this.canvasContext.putImageData(_this.imageData, 0, 0);
+          }
+
+          if (DEBUG) console.log("[motionjs] camera event on USB: "+(e.data?("result="+e.resultCode+" data="+logAbFull(e.data)):e)); 
+          if (_this.depthStreamEnabled) {
+            webkitRequestAnimationFrame(function() { _this.requestDepthFrame() });
+          }
+
         }}, 
       function(dId) { 
         _this.cameraDeviceId=dId; 
@@ -222,40 +265,263 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
 
     //clear buffer data  // apparent hack grabbed from freenect
     this.sendControlAB(this.cameraDeviceId, DIRECTIONS.inbound, 0, 0, 0, new ArrayBuffer(0x200), null, 0x200);
-
   }
+ 
+ var expected_pkts_per_frame=242;
+ var expected_frame_size=640*480*11/8;
+ var expected_pkt_size=1760-12;
+var first_pkt_seq=-1;
 
-  MotionJS.prototype.processDepthFrame = function(responseAB) {
-    var response=new DataView(responseAB);
-    if (response.getUint8(0)===0x52 && response.getUint8(1)===0x42) {  // "RB" is the magic bytes for camera response
-      if (response.getUint8(2)===0x00) {   // 0 == control data
-        var cmd, seqNum, pkt_seq, lengthHigh, lengthLow, timestamp;
-        var cmd=response.getUint8(3),
-            seqNum=response.getUint8(4),
-            pkt_seq=response.getUint8(5),
-            lengthHigh=response.getUint8(6),
-            lengthHigh=response.getUint8(7),
-            lengthLow=response.getUint8(8),
-            timestamp=response.getUint16(9, endianess);
-       
-//        console.log("cmd="+cmd.toString(16)+" seqNum="+seqNum+" pkt_seq="+pkt_seq+" length1="+(lengthHigh*256+lengthLow)+" length2="+(lengthLow*256+lengthHigh)+" timestamp="+timestamp+" datalen="+(responseAB.byteLength-11));
-/*
-        switch (response.getUint8(3)) {
-          case (0x71):
-            break;
-        } */
-        if (this.depthStreamEnabled) {
-          var _this=this;
-          window.setTimeout(function() { _this.requestDepthFrame() }, 0);
-        }
-      } else {
-        if (DEBUG) console.log("ignoring packet, has magic number but control is "+response.getUint8(2));
+MotionJS.prototype.processDepthFrame = function(response) {
+    if (response[0]===0x52 && response[1]===0x42) {  // "RB" is the magic bytes for camera response
+      var seqNum, pkt_seq, lengthHigh, lengthLow, timestamp;
+      var flag=response[3],
+          pkt_seq=response[5],
+          timestamp=response[11]*256*256*256+response[10]*256*256+response[9]*256+response[8];
+     
+      if (DEBUG) console.log("flag="+flag.toString(16)+" pkt_seq="+pkt_seq+" timestamp="+timestamp+" datalen="+(response.byteLength-11));
+      var validFrame=false;
+      switch (flag) {
+        case (0x71): // new frame
+          validFrame=true;
+          this.framePosition=0;
+          this.currentSeq=0;
+          first_pkt_seq=pkt_seq;
+          console.log(" ------- *** new frame");
+          this.processFrame(response);
+          break;
+        case (0x72):  // middle of frame
+          var pktDiff=pkt_seq-this.lastSeq;
+          if (pktDiff<0) pktDiff+=256;
+          if (this.framePosition<0 || pktDiff>30 || this.lastTimestamp-Date.now()>5000) {
+            // got out of sync, will do nothing until the next new_frame
+            console.log("out of sync, waiting for new_frame");
+            this.lastTimestamp=-1;
+          } else {
+            validFrame=true;
+            this.currentSeq+=pktDiff;
+            this.framePosition=this.currentSeq*expected_pkt_size;
+            if (response.length!=DEPTH_PKTBUF) {
+              console.log("*** WARNING: response.length="+response.length+"   expected_pkt_size="+expected_pkt_size);
+            }
+            if (true || this.currentSeq<100) {
+              console.log("diff="+pktDiff+"  first_pkt_seq="+first_pkt_seq+" pkt_seq="+pkt_seq+"  lastseq="+this.lastSeq+"  currentFrame="+this.currentSeq+" framePosition="+this.framePosition);
+              this.processFrame(response);
+            }
+          }
+          break;
+        case (0x75):  // end of frame
+          if (this.framePosition>0) {
+            //this.processFrame(response);
+            validFrame=true;
+          }
+          this.framePosition=-1;
+        break;
+      } 
+      if (validFrame) {
+        this.lastSeq=pkt_seq;
+        this.lastTimestamp=Date.now();
       }
     } else {
         if (DEBUG) console.log("ignoring packet, no magic number");
     }
+  };
+
+  MotionJS.prototype.logIsoPacket = function(ab, offset, len) {
+    var SHOW_ONLY=32;
+    var abv=new Uint8Array(ab, offset || 0, len || ab.byteLength);
+    var str=this.framePosition+" "+abv.byteOffset+"->"+(abv.byteOffset+abv.length)+": ";
+    for (var i=3; i<abv.length && i<SHOW_ONLY; i++) {
+      if (i==5) {
+        str+=(abv[i]<100?' ':'')+(abv[i]<10?' ':'')+abv[i]+" ";
+      } else if (i==8) {
+        timestamp=""+(abv[10]*256*256+abv[9]*256+abv[8]);
+        for (var j=0; j<9-timestamp.length; j++) {
+          str+=" ";
+        }
+        str+=timestamp+" - ";
+        i+=3;
+      } else if (i==4 || i==6 || i==7) {
+      } else {
+        str+=(abv[i]<16?' ':'')+abv[i].toString(16)+' '
+      }
+    }
+    str+=" ... ";
+    for (var i=abv.length-10; i<abv.length; i++) {
+        str+=(abv[i]<16?' ':'')+abv[i].toString(16)+' '
+    }
+    str+=" ("+(abv.length-12)+" b)";
+    return str;
   }
 
+  MotionJS.prototype.logIsoPacketSimple = function(ab, offset, len) {
+    var SHOW_ONLY=36;
+    var abv=new Uint8Array(ab, offset || 0, len || ab.byteLength);
+    var str=this.framePosition+" "+abv.byteOffset+"->"+(abv.byteOffset+abv.length)+": ";
+    for (var i=0; i<abv.length && i<SHOW_ONLY; i++) {
+      str+=(abv[i]<16?' ':'')+abv[i].toString(16)+' '
+    }
+    str+=" ... ";
+    for (var i=abv.length-10; i<abv.length; i++) {
+        str+=(abv[i]<16?' ':'')+abv[i].toString(16)+' '
+    }
+    return str;
+  }
+
+ var t_gamma=[]
+ for (var i=0; i<2048; i++) {
+   var v=i/2048.0;
+   v = v*v*v*6;
+   t_gamma.push(v*6*256);
+ }
+ 
+ var convertPacked11To16bits=function(raw, dest, framePosition) {
+   var vw=11;
+   var offset=Math.floor(framePosition*8/vw);
+   var n=Math.floor(Math.min(raw.length, DEPTH_PKTDSIZE)*8/vw);
+   var buffer=0;
+   var bitsIn=0;
+   var srcOffset=0;
+   var mask=0x7ff;
+   //console.log("  framePosition="+framePosition+" initial pixel="+offset+" initial n="+n+"  raw.length="+raw.length);
+   //var debug_=[];
+   
+   while (n>0) {
+     while (bitsIn<vw) {
+       buffer = (buffer<<8) | raw[srcOffset++];
+       bitsIn+=8;
+     }
+     bitsIn -= vw;
+//     var b=Math.floor(((buffer >> bitsIn) & mask ) * (255/2047));
+     var b=(buffer >> bitsIn) & mask;
+     //debug_.push(b);
+ 
+     var pval=t_gamma[b];
+     var lb = pval & 0xff;
+     var ind=4*offset;
+     switch (pval>>8) {
+       case 0: 
+         dest[ind] = 255;
+         dest[ind+1] = 255-lb;
+         dest[ind+2] = 255-lb;
+         break;
+       case 1: 
+         dest[ind] = 255;
+         dest[ind+1] = lb;
+         dest[ind+2] = 0;
+         break;
+       case 2: 
+         dest[ind] = 255-lb;
+         dest[ind+1] = 255;
+         dest[ind+2] = 0;
+         break;
+       case 3: 
+         dest[ind] = 0;
+         dest[ind+1] = 255;
+         dest[ind+2] = lb;
+         break;
+       case 4: 
+         dest[ind] = 0;
+         dest[ind+1] = 255-lb;
+         dest[ind+2] = 255;
+         break;
+       case 5:
+         dest[ind] = 0;
+         dest[ind+1] = 0;
+         dest[ind+2] = 255-lb;
+         break;
+       default:
+         dest[ind] = 0;
+         dest[ind+1] = 0;
+         dest[ind+2] = 0;
+         break;
+     }
+     dest[ind+3] = 0xff;
+     offset++;
+     n--;
+   }
+   /*
+   console.log(" debug: frameposition="+framePosition);
+   var str="    rawData: ";
+   for (var k=0; k<40; k++) {
+     str+=(raw[k]>15?'':'0')+raw[k].toString(16)+" ";
+   }
+   console.log(str);
+   str="     pixels: ";
+   for (var k=0; k<40; k++) {
+     str+=(debug_[k]>15?'':'0')+debug_[k].toString(16)+" ";
+   }
+   console.log(str);*/
+ };
+   
+
+ var old_convertPacked11To16bits=function(raw, dest, framePosition) {
+   var offset=Math.floor(framePosition*8/11);
+   var vw=11;
+   var n=Math.floor(Math.min(raw.length, DEPTH_PKTDSIZE)*8/11);
+   var buffer=0;
+   var bitsIn=0;
+   var srcOffset=0;
+   //console.log("  framePosition="+framePosition+" initial pixel="+offset+" initial n="+n+"  raw.length="+raw.length);
+   while (n>0) {
+     while (bitsIn<vw) {
+       buffer = (buffer<<8) | raw[srcOffset++];
+       bitsIn+=8;
+     }
+     bitsIn -= vw;
+     var b=Math.floor((buffer >> (bitsIn + vw - 8) ) * (255/2047));
+     dest[4*offset] = b;
+     dest[4*offset+1] = b;
+     dest[4*offset+2] = b;
+     dest[4*offset+3] = 0xff;
+     offset++;
+     n--;
+   }
+   
+
+/*
+   var ri=0,
+       di=offset;
+   var baseMask = (1 << 11) - 1;
+   var length=Math.floor(Math.min(raw.length, DEPTH_PKTDSIZE)*8/11);
+   while (ri<length && di*4<dest.length) {
+     var r0 = raw[ri+0],
+         r1 = raw[ri+1],
+         r2 = raw[ri+2],
+         r3 = raw[ri+3],
+         r4 = raw[ri+4],
+         r5 = raw[ri+5],
+         r6 = raw[ri+6],
+         r7 = raw[ri+7],
+         r8 = raw[ri+8],
+         r9 = raw[ri+9],
+         r10 = raw[ri+10];
+
+     dest[(di+0)*4] = (r0<<3) | (r1>>5);
+     dest[(di+1)*4] = ((r1<<6) | (r2>>2) ) & baseMask;
+     dest[(di+2)*4] = ((r2<<8) | (r3>>1) | (r4>>7) ) & baseMask;
+     dest[(di+3)*4] = ((r4<<4) | (r5>>4) ) & baseMask;
+     dest[(di+4)*4] = ((r5<<7) | (r6>>1) ) & baseMask;
+     dest[(di+5)*4] = ((r6<<10) | (r7>>2) | (r8>>6) ) & baseMask;
+     dest[(di+6)*4] = ((r8<<5) | (r9>>3) ) & baseMask;
+     dest[(di+7)*4] = ((r9<<8) | (r10) ) & baseMask;
+
+     for (var pixel=0; pixel<8; pixel++) {
+       // fill the other colors
+       dest[(di+pixel)*4+1]=dest[(di+pixel)*4+2]=dest[(di+pixel)*4];
+       dest[(di+pixel)*4+3]=0xff;  // fill the transparency
+     }
+     di += 8;
+     ri += 11;
+   }*/
+ };
+ 
+  MotionJS.prototype.processFrame = function(ab) {
+    //console.log(this.logIsoPacket(ab.buffer));
+    
+    convertPacked11To16bits(new Uint8Array(ab.buffer, ab.byteOffset+12, ab.byteLength-12), this.imageData.data, this.framePosition);
+
+  }
 
   MotionJS.prototype.requestDepthFrame = function() {  
 
@@ -286,14 +552,14 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
       "transferInfo": {
         "direction": DIRECTIONS.inbound,
         "endpoint": CAMERA_ENDPOINTS.depth,
-        "length": DEPTH_NUMPKTS*DEPTH_PKTSIZE,
+        "length": DEPTH_NUMPKTS*DEPTH_PKTBUF,   // 16*1920
         "data": null
       },
-      "packets": DEPTH_NUMPKTS,
-      "packetLength": DEPTH_PKTSIZE
+      "packets": DEPTH_NUMPKTS,     // 16
+      "packetLength": DEPTH_PKTBUF    // 1920
     };
     if (DEBUG_DATA) this.debugData.push({"timestamp": Date.now(), "device": "camera", "direction": "todevice", "isoinfo": isoInfo});
-    if (DEBUG) console.log("[motionjs] sendIsochronous "+JSON.stringify(isoInfo));
+  //  if (DEBUG) console.log("[motionjs] sendIsochronous "+JSON.stringify(isoInfo));
 
     chrome.experimental.usb.isochronousTransfer(this.cameraDeviceId, isoInfo);
 
@@ -319,6 +585,11 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
     return this.debugData;
   }
 
+  MotionJS.prototype.closeDevice=function() {
+    chrome.experimental.usb.closeDevice(this.cameraDeviceId);  
+    chrome.experimental.usb.closeDevice(this.motorDeviceId);
+  }
+  
   context.MotionJS=MotionJS;
 
 })(window);

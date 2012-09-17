@@ -34,12 +34,13 @@ var kinect = (function(){
     btnDepthStream.addEventListener("click", swapDepthStream);
     btnInit.addEventListener("click", onFindDevice);
     _testsend.addEventListener("click", function() {
+      console.log("------------- request depth frame");
       motionjs.requestDepthFrame();
     });
     document.getElementById("_createlog").addEventListener("click", function() {
       createLog();
     });
-
+    motionjs.setCanvas(document.getElementById("depth").getContext("2d"), 1);
   };
 
   var createLog = function() {
