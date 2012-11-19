@@ -120,7 +120,7 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
 
   MotionJS.prototype.findDevice = function(onCameraEvent, onMotorEvent, onCameraFound, onMotorFound){
     var _this=this;
-    chrome.experimental.usb.findDevice(vendorId, motor_productId, 
+    chrome.usb.findDevice(vendorId, motor_productId, 
       {"onEvent": function(e) {
           if (DEBUG) console.log("[motionjs] motor event on USB: "+(e.data?("result="+e.resultCode+" data="+logAb(e.data)):e)); 
           if (DEBUG_DATA) _this.debugData.push({"timestamp": Date.now(), "device": "motor", "direction": "tocomputer", "event": e, "event.data": logAbFull(e.data, true)});
@@ -132,7 +132,7 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
         if (onMotorFound) onMotorFound.call(this, dId);
       }
     );
-    chrome.experimental.usb.findDevice(vendorId, camera_productId, 
+    chrome.usb.findDevice(vendorId, camera_productId, 
       {"onEvent": function(e) {
           //if (DEBUG_DATA) _this.debugData.push({"timestamp": Date.now(), "device": "camera", "direction": "tocomputer", "event": e});
           //if (onCameraEvent) onCameraEvent.call(this, e);
@@ -187,7 +187,7 @@ For read packets (RequestType 0x80 and 0xc0) Length is the length of the respons
       "length":expectedResponseLength
     };
     if (DEBUG_DATA) this.debugData.push({"timestamp": Date.now(), "device": "motor", "direction": "todevice", "transferInfo": transferInfo, "info.data": logAbFull(dataAB, true)});
-    chrome.experimental.usb.controlTransfer(deviceId, transferInfo, callback);
+    chrome.usb.controlTransfer(deviceId, transferInfo, callback);
     if (DEBUG)  console.log("[motionjs] sendControl "+JSON.stringify(transferInfo)+"  data: "+logAb(dataAB));
   }
 
@@ -561,7 +561,7 @@ MotionJS.prototype.processDepthFrame = function(response) {
     if (DEBUG_DATA) this.debugData.push({"timestamp": Date.now(), "device": "camera", "direction": "todevice", "isoinfo": isoInfo});
   //  if (DEBUG) console.log("[motionjs] sendIsochronous "+JSON.stringify(isoInfo));
 
-    chrome.experimental.usb.isochronousTransfer(this.cameraDeviceId, isoInfo);
+    chrome.usb.isochronousTransfer(this.cameraDeviceId, isoInfo);
 
   }
 
@@ -586,8 +586,8 @@ MotionJS.prototype.processDepthFrame = function(response) {
   }
 
   MotionJS.prototype.closeDevice=function() {
-    chrome.experimental.usb.closeDevice(this.cameraDeviceId);  
-    chrome.experimental.usb.closeDevice(this.motorDeviceId);
+    chrome.usb.closeDevice(this.cameraDeviceId);  
+    chrome.usb.closeDevice(this.motorDeviceId);
   }
   
   context.MotionJS=MotionJS;
