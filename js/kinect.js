@@ -2,11 +2,6 @@
 var kinect = (function(){
   //TODO: specific product ids for camera, audio and motor/accelerometer
   
-  var vendorId = 0x045e;
-  var motor_productId = 0x02B0;   // motor
-  var camera_productId = 0x02Ae;    // camera
-  var tmr_accel;
-
   var motionjs;
 
   var accel;
@@ -126,7 +121,6 @@ var kinect = (function(){
     } else {
       deviceId=dId;
       logSuccess("Device found (deviceId="+JSON.stringify(dId)+")");
-//      tmr_accel = setInterval(get_accel, 1000);
       flipState(true);
     }
   };

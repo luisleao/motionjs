@@ -4,6 +4,10 @@
   "permissions": [
     "storage", "usb"
   ],
+  "optional_permissions": [ {"usbDevices": [
+     {"vendorId": 1118, "productId": 688},
+     {"vendorId": 1118, "productId": 686}
+    ]}],
   "app": {
     "background": {
       "scripts": ["js/background.js"]
